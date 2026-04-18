@@ -13,15 +13,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!PLACES_KEY) return res.status(500).json({ error: 'GOOGLE_PLACES_API_KEY nicht konfiguriert' });
 
   try {
-    // 1. PLZ in Koordinaten auflösen (Geocoding API)
+    // 1. PLZ in Koordinaten auflösen — explizit auf Deutschland einschränken
     const geoRes = await fetch(
-      `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(plz)}&key=${PLACES_KEY}`
+      `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(plz + ', Deutschland')}&components=country:DE&region=de&language=de&key=${PLACES_KEY}`
     );
     const geoData = await geoRes.json();
     if (!geoData.results?.length) {
-      return res.status(400).json({ error: `PLZ ${plz} nicht gefunden` });
+      return res.status(400).json({ error: `PLZ ${plz} in Deutschland nicht gefunden` });
     }
-    const { lat, lng } = geoData.results[0].geometry.location;
+    // Sicherheitscheck: nur Ergebnisse in Deutschland verwenden
+    const deResult = geoData.results.find((r: { address_components: { types: string[]; short_name: string }[] }) =>
+      r.address_components?.some(c => c.types.includes('country') && c.short_name === 'DE')
+    ) ?? geoData.results[0];
+    const { lat, lng } = deResult.geometry.location;
 
     // 2. Nearby Search (Places API) – mehrere Seiten laden
     const ergebnisse: Place[] = [];
@@ -33,6 +37,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         radius: String(radius),
         keyword: query,
         language: 'de',
+        region: 'de',
         key: PLACES_KEY,
         ...(pageToken ? { pagetoken: pageToken } : {}),
       });
@@ -54,6 +59,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           place_id: place.place_id,
           fields: 'name,formatted_address,formatted_phone_number,website,rating,user_ratings_total,types',
           language: 'de',
+          region: 'de',
           key: PLACES_KEY,
         });
         const detailRes = await fetch(
