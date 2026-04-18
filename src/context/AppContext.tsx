@@ -6,7 +6,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from './AuthContext';
-import { AppData, Firma, Kunde, Artikel, Dokument, Projekt, ProjektZugang, ProjektKommunikation, KommunikationsAnhang } from '../types';
+import { AppData, Firma, Kunde, Artikel, Dokument, Projekt, ProjektZugang, ProjektKommunikation, KommunikationsAnhang, Lead } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
 const defaultFirma: Firma = {
@@ -37,6 +37,7 @@ const emptyData: AppData = {
   artikel: [],
   dokumente: [],
   projekte: [],
+  leads: [],
 };
 
 // ─── Firestore erlaubt keine undefined-Werte ──────────────────────────────────
@@ -98,6 +99,8 @@ interface AppContextValue {
   deleteKommunikation: (projektId: string, komId: string) => Promise<void>;
   addAnhang: (projektId: string, komId: string, anhang: KommunikationsAnhang) => Promise<void>;
   deleteAnhang: (projektId: string, komId: string, anhangId: string) => Promise<void>;
+  upsertLead: (lead: Lead) => Promise<void>;
+  deleteLead: (id: string) => Promise<void>;
   exportData: () => AppData;
   importData: (data: AppData) => Promise<void>;
 }
@@ -119,7 +122,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const unsub = onSnapshot(userDocRef, (snap) => {
       if (snap.exists()) {
         const d = snap.data() as AppData;
-        setData({ ...emptyData, ...d, projekte: d.projekte ?? [] });
+        setData({ ...emptyData, ...d, projekte: d.projekte ?? [], leads: d.leads ?? [] });
       } else {
         setDoc(userDocRef, sanitize(emptyData));
       }
@@ -216,6 +219,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       geaendertAm: new Date().toISOString(),
     }));
 
+  // ── Leads (gesternde Akquise-Einträge) ───────────────────────────────────
+  const upsertLead = async (lead: Lead) =>
+    persist({ ...data, leads: [...(data.leads ?? []).filter(l => l.id !== lead.id), lead] });
+  const deleteLead = async (id: string) =>
+    persist({ ...data, leads: (data.leads ?? []).filter(l => l.id !== id) });
+
   // ── Import / Export ───────────────────────────────────────────────────────
   const exportData = () => data;
   const importData = async (imported: AppData) => persist(imported);
@@ -231,6 +240,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addZugang, updateZugang, deleteZugang,
       addKommunikation, updateKommunikation, deleteKommunikation,
       addAnhang, deleteAnhang,
+      upsertLead, deleteLead,
       exportData, importData,
     }}>
       {children}

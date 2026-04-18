@@ -217,6 +217,7 @@ function UploadZone({
   const { user } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploads, setUploads] = useState<{ name: string; progress: number; error?: string }[]>([]);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   const handleFiles = (files: FileList | null) => {
     if (!files || !user) return;
@@ -273,13 +274,20 @@ function UploadZone({
         accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.eml,.msg,.zip"
         onChange={e => { handleFiles(e.target.files); if (fileRef.current) fileRef.current.value = ''; }}
       />
-      <button
-        type="button"
+      <div
+        onDragOver={e => { e.preventDefault(); setIsDragOver(true); }}
+        onDragLeave={() => setIsDragOver(false)}
+        onDrop={e => { e.preventDefault(); setIsDragOver(false); handleFiles(e.dataTransfer.files); }}
         onClick={() => fileRef.current?.click()}
-        className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-400 border border-dashed border-dark-600 rounded-lg hover:border-primary-600 hover:text-primary-400 transition-colors"
+        className={`flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-medium border border-dashed rounded-lg cursor-pointer transition-all ${
+          isDragOver
+            ? 'border-primary-500 bg-primary-900/20 text-primary-300'
+            : 'border-dark-600 text-gray-400 hover:border-primary-600 hover:text-primary-400'
+        }`}
       >
-        <Paperclip size={12} /> Datei anhängen
-      </button>
+        <Paperclip size={12} />
+        {isDragOver ? 'Loslassen zum Hochladen' : 'Datei anhängen oder hierher ziehen (.eml, Bilder, PDF…)'}
+      </div>
       {active.map(u => (
         <div key={u.name} className="flex items-center gap-2 text-xs text-gray-400">
           <Loader2 size={11} className="animate-spin shrink-0 text-primary-400" />
