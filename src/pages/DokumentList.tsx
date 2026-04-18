@@ -85,30 +85,30 @@ export default function DokumentList({ typ }: Props) {
 
       <div className="p-8 space-y-4">
         <div className="relative">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder={`Suchen nach Nummer, Betreff, Kunde…`}
-            className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="w-full pl-9 pr-4 py-2.5 bg-dark-800 border border-dark-700 rounded-xl text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>
 
         {filtered.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-200 py-16 flex flex-col items-center gap-3 text-gray-400">
+          <div className="bg-dark-800 rounded-2xl border border-dark-700 py-16 flex flex-col items-center gap-3 text-gray-600">
             <Icon size={36} strokeWidth={1.2} />
             <p className="text-sm">{search ? 'Keine Ergebnisse gefunden.' : `Noch keine ${typLabel}e vorhanden.`}</p>
             {!search && (
-              <button onClick={openCreate} className="text-primary-600 text-sm font-medium hover:underline">
+              <button onClick={openCreate} className="text-primary-400 text-sm font-medium hover:underline">
                 Erstes {typLabel} erstellen
               </button>
             )}
           </div>
         ) : (
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="bg-dark-800 rounded-2xl border border-dark-700 overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 text-left border-b border-gray-200">
+                <tr className="bg-dark-900/60 text-left border-b border-dark-700">
                   <th className="px-5 py-3 text-xs font-semibold text-gray-500">Nummer</th>
                   <th className="px-5 py-3 text-xs font-semibold text-gray-500">Kunde</th>
                   <th className="px-5 py-3 text-xs font-semibold text-gray-500">Betreff</th>
@@ -118,32 +118,32 @@ export default function DokumentList({ typ }: Props) {
                   <th className="px-5 py-3 text-xs font-semibold text-gray-500 text-right">Aktionen</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-dark-700">
                 {filtered.map(doc => {
                   const kunde = data.kunden.find(k => k.id === doc.kundeId);
                   const { brutto } = berechneGesamtsummen(doc.positionen);
                   return (
-                    <tr key={doc.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-5 py-3 font-mono text-xs text-gray-700 font-medium">{doc.nummer}</td>
-                      <td className="px-5 py-3 text-gray-800">{kunde?.firma || '–'}</td>
-                      <td className="px-5 py-3 text-gray-500 max-w-xs truncate">{doc.betreff || '–'}</td>
+                    <tr key={doc.id} className="hover:bg-dark-700/50 transition-colors">
+                      <td className="px-5 py-3 font-mono text-xs text-gray-400 font-medium">{doc.nummer}</td>
+                      <td className="px-5 py-3 text-gray-300">{kunde?.firma || '–'}</td>
+                      <td className="px-5 py-3 text-gray-400 max-w-xs truncate">{doc.betreff || '–'}</td>
                       <td className="px-5 py-3 text-gray-500 text-xs">
                         {format(new Date(doc.datum), 'dd.MM.yyyy', { locale: de })}
                       </td>
-                      <td className="px-5 py-3 text-right font-semibold text-gray-900">{fmtEur(brutto)}</td>
+                      <td className="px-5 py-3 text-right font-semibold text-gray-200">{fmtEur(brutto)}</td>
                       <td className="px-5 py-3"><StatusBadge status={doc.status} /></td>
                       <td className="px-5 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => handlePDF(doc)} title="PDF" className="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-primary-50 transition-colors">
+                          <button onClick={() => handlePDF(doc)} title="PDF" className="p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors">
                             <Download size={14} />
                           </button>
-                          <button onClick={() => handleDuplicate(doc)} title="Duplizieren" className="p-1.5 rounded-lg text-gray-400 hover:text-violet-600 hover:bg-violet-50 transition-colors">
+                          <button onClick={() => handleDuplicate(doc)} title="Duplizieren" className="p-1.5 rounded-lg text-gray-500 hover:text-violet-400 hover:bg-violet-900/30 transition-colors">
                             <Copy size={14} />
                           </button>
-                          <button onClick={() => openEdit(doc)} className="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-primary-50 transition-colors">
+                          <button onClick={() => openEdit(doc)} className="p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors">
                             <Pencil size={14} />
                           </button>
-                          <button onClick={() => setDeleteId(doc.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors">
+                          <button onClick={() => setDeleteId(doc.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors">
                             <Trash2 size={14} />
                           </button>
                         </div>

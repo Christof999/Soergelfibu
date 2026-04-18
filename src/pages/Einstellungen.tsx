@@ -46,17 +46,19 @@ export default function Einstellungen() {
     input.click();
   };
 
+  const inputCls = "w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent";
+
   const section = (title: string) => (
-    <h3 className="text-sm font-semibold text-gray-700 mt-6 mb-3 pb-1 border-b border-gray-100">{title}</h3>
+    <h3 className="text-sm font-semibold text-gray-400 mt-6 mb-3 pb-1 border-b border-dark-700">{title}</h3>
   );
 
   const field = (label: string, name: keyof Firma, type: string = 'text') => (
     <div>
-      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+      <label className="block text-xs font-medium text-gray-400 mb-1">{label}</label>
       <input
         type={type}
         {...register(name)}
-        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+        className={inputCls}
       />
     </div>
   );
@@ -68,10 +70,10 @@ export default function Einstellungen() {
         subtitle="Firmendaten und App-Konfiguration"
         actions={
           <div className="flex gap-2">
-            <button onClick={handleImport} className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors">
+            <button onClick={handleImport} className="flex items-center gap-2 px-4 py-2 text-sm border border-dark-700 rounded-lg text-gray-400 hover:bg-dark-700 hover:text-gray-200 transition-colors">
               <Upload size={15} /> Importieren
             </button>
-            <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors">
+            <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 text-sm border border-dark-700 rounded-lg text-gray-400 hover:bg-dark-700 hover:text-gray-200 transition-colors">
               <Download size={15} /> Exportieren
             </button>
           </div>
@@ -80,7 +82,7 @@ export default function Einstellungen() {
 
       <div className="p-8">
         <form onSubmit={handleSubmit(onSubmit)}>
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+          <div className="bg-dark-800 rounded-2xl border border-dark-700 p-6">
             {section('Firmeninformationen')}
             <div className="grid grid-cols-2 gap-4">
               {field('Firmenname', 'name')}
@@ -112,14 +114,14 @@ export default function Einstellungen() {
               {field('Angebots-Präfix (z.B. ANG)', 'angebotPrefix')}
               {field('Rechnungs-Präfix (z.B. RE)', 'rechnungPrefix')}
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Nächste Angebotsnummer</label>
+                <label className="block text-xs font-medium text-gray-400 mb-1">Nächste Angebotsnummer</label>
                 <input type="number" min="1" {...register('nextAngebotNr', { valueAsNumber: true })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                  className={inputCls} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Nächste Rechnungsnummer</label>
+                <label className="block text-xs font-medium text-gray-400 mb-1">Nächste Rechnungsnummer</label>
                 <input type="number" min="1" {...register('nextRechnungNr', { valueAsNumber: true })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                  className={inputCls} />
               </div>
             </div>
 
@@ -131,9 +133,9 @@ export default function Einstellungen() {
           </div>
         </form>
 
-        <div className="mt-6 bg-emerald-50 border border-emerald-200 rounded-2xl p-5">
-          <h3 className="text-sm font-semibold text-emerald-800 mb-1">Cloud-Synchronisation aktiv</h3>
-          <p className="text-xs text-emerald-700">
+        <div className="mt-6 bg-emerald-900/30 border border-emerald-800 rounded-2xl p-5">
+          <h3 className="text-sm font-semibold text-emerald-400 mb-1">Cloud-Synchronisation aktiv</h3>
+          <p className="text-xs text-emerald-500">
             Deine Daten werden in Echtzeit in Firebase gespeichert und sind auf allen deinen Geräten verfügbar. Der JSON-Export dient als zusätzliche Sicherung.
           </p>
         </div>
