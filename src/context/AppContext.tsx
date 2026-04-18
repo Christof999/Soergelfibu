@@ -38,6 +38,21 @@ const emptyData: AppData = {
   dokumente: [],
 };
 
+// ─── Firestore erlaubt keine undefined-Werte → alle auf leeren String setzen ──
+
+function sanitize<T>(obj: T): T {
+  if (Array.isArray(obj)) return obj.map(sanitize) as unknown as T;
+  if (obj !== null && typeof obj === 'object') {
+    return Object.fromEntries(
+      Object.entries(obj as Record<string, unknown>).map(([k, v]) => [
+        k,
+        v === undefined ? '' : sanitize(v),
+      ])
+    ) as T;
+  }
+  return obj;
+}
+
 // ─── Hilfsfunktionen für Nummernvergabe ──────────────────────────────────────
 
 function nextKundennummer(kunden: Kunde[]): string {
@@ -112,7 +127,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const persist = useCallback(async (updated: AppData) => {
     if (!userDocRef) return;
     setData(updated); // Optimistic update
-    await setDoc(userDocRef, updated);
+    await setDoc(userDocRef, sanitize(updated));
   }, [userDocRef]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Firma ─────────────────────────────────────────────────────────────────
