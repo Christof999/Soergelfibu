@@ -135,10 +135,36 @@ export interface Projekt {
   geaendertAm: string;
 }
 
+// ─── Akquise-Tool ─────────────────────────────────────────────────────────────
+
+export interface LeadAnalyse {
+  optimierungen: string[];
+  ansprechpartner: string;
+  zusammenfassung: string;
+  analysiertAm: string;
+}
+
+export interface Lead {
+  id: string;
+  name: string;
+  adresse: string;
+  telefon: string;
+  email: string;
+  website: string;
+  branche: string;
+  placeId: string;
+  bewertung: number;
+  bewertungsAnzahl: number;
+  analyse: LeadAnalyse | null;
+  stern: boolean;
+  erstelltAm: string;
+}
+
 export interface AppData {
   firma: Firma;
   kunden: Kunde[];
   artikel: Artikel[];
   dokumente: Dokument[];
   projekte: Projekt[];
+  leads: Lead[];
 }

@@ -11,6 +11,7 @@ import {
   Cloud,
   CloudOff,
   FolderKanban,
+  Telescope,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
@@ -22,6 +23,7 @@ const navItems = [
   { to: '/angebote', label: 'Angebote', icon: FileText },
   { to: '/rechnungen', label: 'Rechnungen', icon: Receipt },
   { to: '/projekte', label: 'Projekte', icon: FolderKanban },
+  { to: '/akquise', label: 'Akquise', icon: Telescope },
   { to: '/einstellungen', label: 'Einstellungen', icon: Settings },
 ];
 
