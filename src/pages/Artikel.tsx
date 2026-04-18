@@ -100,7 +100,7 @@ function ArtikelForm({
 }
 
 export default function ArtikelPage() {
-  const { data, dispatch } = useApp();
+  const { data, addArtikel, updateArtikel, deleteArtikel } = useApp();
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editArtikel, setEditArtikel] = useState<Artikel | null>(null);
@@ -115,11 +115,11 @@ export default function ArtikelPage() {
   const openCreate = () => { setEditArtikel(null); setModalOpen(true); };
   const openEdit = (a: Artikel) => { setEditArtikel(a); setModalOpen(true); };
 
-  const handleSave = (formData: FormData) => {
+  const handleSave = async (formData: FormData) => {
     if (editArtikel) {
-      dispatch({ type: 'UPDATE_ARTIKEL', payload: { ...editArtikel, ...formData } });
+      await updateArtikel({ ...editArtikel, ...formData });
     } else {
-      dispatch({ type: 'ADD_ARTIKEL', payload: formData });
+      await addArtikel(formData);
     }
     setModalOpen(false);
   };
@@ -188,16 +188,10 @@ export default function ArtikelPage() {
                     <td className="px-5 py-3 text-right text-gray-500">{a.mwstSatz}%</td>
                     <td className="px-5 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => openEdit(a)}
-                          className="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
-                        >
+                        <button onClick={() => openEdit(a)} className="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-primary-50 transition-colors">
                           <Pencil size={14} />
                         </button>
-                        <button
-                          onClick={() => setDeleteId(a.id)}
-                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                        >
+                        <button onClick={() => setDeleteId(a.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors">
                           <Trash2 size={14} />
                         </button>
                       </div>
@@ -210,23 +204,14 @@ export default function ArtikelPage() {
         )}
       </div>
 
-      <Modal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title={editArtikel ? 'Artikel bearbeiten' : 'Neuer Artikel'}
-        size="md"
-      >
-        <ArtikelForm
-          initial={editArtikel ?? undefined}
-          onSave={handleSave}
-          onCancel={() => setModalOpen(false)}
-        />
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editArtikel ? 'Artikel bearbeiten' : 'Neuer Artikel'} size="md">
+        <ArtikelForm initial={editArtikel ?? undefined} onSave={handleSave} onCancel={() => setModalOpen(false)} />
       </Modal>
 
       <ConfirmDialog
         open={!!deleteId}
         onClose={() => setDeleteId(null)}
-        onConfirm={() => dispatch({ type: 'DELETE_ARTIKEL', payload: deleteId! })}
+        onConfirm={() => deleteArtikel(deleteId!)}
         title="Artikel löschen"
         message="Soll dieser Artikel wirklich gelöscht werden?"
       />

@@ -7,7 +7,12 @@ import {
   Receipt,
   Settings,
   ChevronRight,
+  LogOut,
+  Cloud,
+  CloudOff,
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { useApp } from '../context/AppContext';
 
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -19,6 +24,9 @@ const navItems = [
 ];
 
 export default function Layout() {
+  const { user, logout } = useAuth();
+  const { syncing } = useApp();
+
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
@@ -30,7 +38,19 @@ export default function Layout() {
             </div>
             <div>
               <p className="text-sm font-bold text-gray-900 leading-tight">SörgelFibu</p>
-              <p className="text-xs text-gray-500">Finanzverwaltung</p>
+              <div className="flex items-center gap-1 mt-0.5">
+                {syncing ? (
+                  <>
+                    <CloudOff size={10} className="text-amber-400" />
+                    <p className="text-xs text-amber-500">Synchronisiert…</p>
+                  </>
+                ) : (
+                  <>
+                    <Cloud size={10} className="text-emerald-500" />
+                    <p className="text-xs text-emerald-600">Gespeichert</p>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -60,8 +80,28 @@ export default function Layout() {
           ))}
         </nav>
 
+        {/* User-Bereich */}
         <div className="p-3 border-t border-gray-100">
-          <p className="text-xs text-gray-400 text-center">v1.0.0</p>
+          <div className="flex items-center gap-2 px-2 py-2">
+            {user?.photoURL ? (
+              <img src={user.photoURL} alt="Avatar" className="w-7 h-7 rounded-full" />
+            ) : (
+              <div className="w-7 h-7 rounded-full bg-primary-100 flex items-center justify-center text-xs font-bold text-primary-700">
+                {user?.displayName?.[0] ?? '?'}
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-gray-800 truncate">{user?.displayName ?? 'Nutzer'}</p>
+              <p className="text-xs text-gray-400 truncate">{user?.email}</p>
+            </div>
+            <button
+              onClick={logout}
+              title="Abmelden"
+              className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+            >
+              <LogOut size={14} />
+            </button>
+          </div>
         </div>
       </aside>
 
