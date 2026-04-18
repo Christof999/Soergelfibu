@@ -141,6 +141,7 @@ export interface LeadAnalyse {
   optimierungen: string[];
   ansprechpartner: string;
   zusammenfassung: string;
+  websiteGeladen: boolean;
   analysiertAm: string;
 }
 
