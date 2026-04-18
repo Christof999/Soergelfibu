@@ -28,26 +28,26 @@ export default function Layout() {
   const { syncing } = useApp();
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-dark-900">
       {/* Sidebar */}
-      <aside className="w-60 bg-white border-r border-gray-200 flex flex-col shadow-sm">
-        <div className="p-5 border-b border-gray-100">
+      <aside className="w-60 bg-dark-800 border-r border-dark-700 flex flex-col">
+        <div className="p-5 border-b border-dark-700">
           <div className="flex items-center gap-2">
             <div className="w-9 h-9 bg-primary-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">SF</span>
+              <span className="text-white font-bold text-sm">SØ</span>
             </div>
             <div>
-              <p className="text-sm font-bold text-gray-900 leading-tight">SörgelFibu</p>
+              <p className="text-sm font-bold text-gray-100 leading-tight">SØRGEL-design</p>
               <div className="flex items-center gap-1 mt-0.5">
                 {syncing ? (
                   <>
                     <CloudOff size={10} className="text-amber-400" />
-                    <p className="text-xs text-amber-500">Synchronisiert…</p>
+                    <p className="text-xs text-amber-400">Synchronisiert…</p>
                   </>
                 ) : (
                   <>
-                    <Cloud size={10} className="text-emerald-500" />
-                    <p className="text-xs text-emerald-600">Gespeichert</p>
+                    <Cloud size={10} className="text-emerald-400" />
+                    <p className="text-xs text-emerald-400">Gespeichert</p>
                   </>
                 )}
               </div>
@@ -64,16 +64,16 @@ export default function Layout() {
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group ${
                   isActive
-                    ? 'bg-primary-50 text-primary-700'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    ? 'bg-primary-600/20 text-primary-400'
+                    : 'text-gray-400 hover:bg-dark-700 hover:text-gray-100'
                 }`
               }
             >
               {({ isActive }) => (
                 <>
-                  <Icon size={17} className={isActive ? 'text-primary-600' : 'text-gray-400 group-hover:text-gray-600'} />
+                  <Icon size={17} className={isActive ? 'text-primary-400' : 'text-gray-500 group-hover:text-gray-300'} />
                   <span className="flex-1">{label}</span>
-                  {isActive && <ChevronRight size={14} className="text-primary-400" />}
+                  {isActive && <ChevronRight size={14} className="text-primary-500" />}
                 </>
               )}
             </NavLink>
@@ -81,23 +81,23 @@ export default function Layout() {
         </nav>
 
         {/* User-Bereich */}
-        <div className="p-3 border-t border-gray-100">
+        <div className="p-3 border-t border-dark-700">
           <div className="flex items-center gap-2 px-2 py-2">
             {user?.photoURL ? (
               <img src={user.photoURL} alt="Avatar" className="w-7 h-7 rounded-full" />
             ) : (
-              <div className="w-7 h-7 rounded-full bg-primary-100 flex items-center justify-center text-xs font-bold text-primary-700">
+              <div className="w-7 h-7 rounded-full bg-primary-800 flex items-center justify-center text-xs font-bold text-primary-300">
                 {user?.displayName?.[0] ?? '?'}
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-gray-800 truncate">{user?.displayName ?? 'Nutzer'}</p>
-              <p className="text-xs text-gray-400 truncate">{user?.email}</p>
+              <p className="text-xs font-medium text-gray-200 truncate">{user?.displayName ?? 'Nutzer'}</p>
+              <p className="text-xs text-gray-500 truncate">{user?.email}</p>
             </div>
             <button
               onClick={logout}
               title="Abmelden"
-              className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+              className="p-1 rounded text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors"
             >
               <LogOut size={14} />
             </button>
@@ -106,7 +106,7 @@ export default function Layout() {
       </aside>
 
       {/* Main */}
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-auto bg-dark-900">
         <Outlet />
       </main>
     </div>
