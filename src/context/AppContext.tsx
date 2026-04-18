@@ -6,7 +6,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from './AuthContext';
-import { AppData, Firma, Kunde, Artikel, Dokument, Projekt, ProjektZugang, ProjektKommunikation } from '../types';
+import { AppData, Firma, Kunde, Artikel, Dokument, Projekt, ProjektZugang, ProjektKommunikation, KommunikationsAnhang } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
 const defaultFirma: Firma = {
@@ -93,9 +93,11 @@ interface AppContextValue {
   addZugang: (projektId: string, z: Omit<ProjektZugang, 'id'>) => Promise<void>;
   updateZugang: (projektId: string, z: ProjektZugang) => Promise<void>;
   deleteZugang: (projektId: string, zugangId: string) => Promise<void>;
-  addKommunikation: (projektId: string, k: Omit<ProjektKommunikation, 'id' | 'erstelltAm'>) => Promise<void>;
+  addKommunikation: (projektId: string, k: Omit<ProjektKommunikation, 'id' | 'erstelltAm'>) => Promise<ProjektKommunikation>;
   updateKommunikation: (projektId: string, k: ProjektKommunikation) => Promise<void>;
   deleteKommunikation: (projektId: string, komId: string) => Promise<void>;
+  addAnhang: (projektId: string, komId: string, anhang: KommunikationsAnhang) => Promise<void>;
+  deleteAnhang: (projektId: string, komId: string, anhangId: string) => Promise<void>;
   exportData: () => AppData;
   importData: (data: AppData) => Promise<void>;
 }
@@ -192,12 +194,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     withProject(projektId, p => ({ ...p, zugaenge: p.zugaenge.filter(x => x.id !== zugangId), geaendertAm: new Date().toISOString() }));
 
   // ── Projektkommunikation ──────────────────────────────────────────────────
-  const addKommunikation = async (projektId: string, k: Omit<ProjektKommunikation, 'id' | 'erstelltAm'>) =>
-    withProject(projektId, p => ({ ...p, kommunikation: [...p.kommunikation, { ...k, id: uuidv4(), erstelltAm: new Date().toISOString() }], geaendertAm: new Date().toISOString() }));
+  const addKommunikation = async (projektId: string, k: Omit<ProjektKommunikation, 'id' | 'erstelltAm'>): Promise<ProjektKommunikation> => {
+    const newKom: ProjektKommunikation = { ...k, id: uuidv4(), erstelltAm: new Date().toISOString(), anhaenge: k.anhaenge ?? [] };
+    await withProject(projektId, p => ({ ...p, kommunikation: [...p.kommunikation, newKom], geaendertAm: new Date().toISOString() }));
+    return newKom;
+  };
   const updateKommunikation = async (projektId: string, k: ProjektKommunikation) =>
     withProject(projektId, p => ({ ...p, kommunikation: p.kommunikation.map(x => x.id === k.id ? k : x), geaendertAm: new Date().toISOString() }));
   const deleteKommunikation = async (projektId: string, komId: string) =>
     withProject(projektId, p => ({ ...p, kommunikation: p.kommunikation.filter(x => x.id !== komId), geaendertAm: new Date().toISOString() }));
+  const addAnhang = async (projektId: string, komId: string, anhang: KommunikationsAnhang) =>
+    withProject(projektId, p => ({
+      ...p,
+      kommunikation: p.kommunikation.map(k => k.id === komId ? { ...k, anhaenge: [...(k.anhaenge ?? []), anhang] } : k),
+      geaendertAm: new Date().toISOString(),
+    }));
+  const deleteAnhang = async (projektId: string, komId: string, anhangId: string) =>
+    withProject(projektId, p => ({
+      ...p,
+      kommunikation: p.kommunikation.map(k => k.id === komId ? { ...k, anhaenge: (k.anhaenge ?? []).filter(a => a.id !== anhangId) } : k),
+      geaendertAm: new Date().toISOString(),
+    }));
 
   // ── Import / Export ───────────────────────────────────────────────────────
   const exportData = () => data;
@@ -213,6 +230,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addProjekt, updateProjekt, deleteProjekt,
       addZugang, updateZugang, deleteZugang,
       addKommunikation, updateKommunikation, deleteKommunikation,
+      addAnhang, deleteAnhang,
       exportData, importData,
     }}>
       {children}

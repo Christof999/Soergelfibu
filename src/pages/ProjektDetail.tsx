@@ -1,19 +1,28 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import {
   ArrowLeft, Plus, Pencil, Trash2, Eye, EyeOff,
   Link2, MessageSquare, Mail, Phone, FileText, StickyNote,
-  Globe, Lock,
+  Globe, Lock, ChevronDown, ChevronUp, Paperclip, X,
+  FileIcon, Loader2,
 } from 'lucide-react';
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
+import { storage } from '../firebase/config';
+import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useApp } from '../context/AppContext';
-import { ProjektZugang, ProjektKommunikation, KommunikationsTyp, ProjektStatus } from '../types';
+import {
+  ProjektZugang, ProjektKommunikation, KommunikationsTyp,
+  ProjektStatus, KommunikationsAnhang,
+} from '../types';
+import { berechneZeile, berechneGesamtsummen, fmtEur } from '../utils/berechnungen';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
+import { v4 as uuidv4 } from 'uuid';
 
-// ─── Hilfskonstanten ─────────────────────────────────────────────────────────
+// ─── Konstanten ───────────────────────────────────────────────────────────────
 
 const STATUS_LABELS: Record<ProjektStatus, string> = {
   aktiv: 'Aktiv', pausiert: 'Pausiert', abgeschlossen: 'Abgeschlossen', archiviert: 'Archiviert',
@@ -24,12 +33,9 @@ const STATUS_CLS: Record<ProjektStatus, string> = {
   abgeschlossen: 'bg-blue-900/50 text-blue-300',
   archiviert: 'bg-gray-700/50 text-gray-400',
 };
-
 const KOM_ICONS: Record<KommunikationsTyp, React.ReactNode> = {
-  gespraech: <Phone size={14} />,
-  email: <Mail size={14} />,
-  meeting: <MessageSquare size={14} />,
-  notiz: <StickyNote size={14} />,
+  gespraech: <Phone size={14} />, email: <Mail size={14} />,
+  meeting: <MessageSquare size={14} />, notiz: <StickyNote size={14} />,
 };
 const KOM_LABELS: Record<KommunikationsTyp, string> = {
   gespraech: 'Gespräch', email: 'E-Mail', meeting: 'Meeting', notiz: 'Notiz',
@@ -42,6 +48,84 @@ const KOM_CLS: Record<KommunikationsTyp, string> = {
 };
 
 const inputCls = "w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500";
+
+// ─── Angebot Positionen (aufklappbar) ────────────────────────────────────────
+
+function AngebotPositionen({ angebot }: { angebot: NonNullable<ReturnType<typeof useApp>['data']['dokumente'][0]> }) {
+  const [open, setOpen] = useState(false);
+  const { netto, mwstBetrag, brutto } = berechneGesamtsummen(angebot.positionen);
+
+  return (
+    <div className="bg-dark-800 border border-dark-700 rounded-2xl overflow-hidden">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-dark-700/40 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <FileText size={15} className="text-amber-400 shrink-0" />
+          <div className="text-left">
+            <p className="text-sm font-semibold text-gray-200">{angebot.nummer}</p>
+            {angebot.betreff && <p className="text-xs text-gray-500">{angebot.betreff}</p>}
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="text-sm font-bold text-gray-200">{fmtEur(brutto)}</span>
+          {open ? <ChevronUp size={16} className="text-gray-500" /> : <ChevronDown size={16} className="text-gray-500" />}
+        </div>
+      </button>
+
+      {open && (
+        <div className="border-t border-dark-700">
+          {angebot.positionen.length === 0 ? (
+            <p className="px-5 py-4 text-sm text-gray-500">Keine Positionen vorhanden.</p>
+          ) : (
+            <>
+              {/* Header */}
+              <div className="grid grid-cols-12 gap-2 px-5 py-2 bg-dark-900/60 text-xs font-semibold text-gray-500">
+                <div className="col-span-1">#</div>
+                <div className="col-span-4">Bezeichnung</div>
+                <div className="col-span-1 text-right">Menge</div>
+                <div className="col-span-1">Einheit</div>
+                <div className="col-span-2 text-right">Einzelpreis</div>
+                <div className="col-span-1 text-right">MwSt.</div>
+                <div className="col-span-2 text-right">Gesamt</div>
+              </div>
+              {angebot.positionen.map((pos, idx) => {
+                const { netto: posNetto } = berechneZeile(pos);
+                return (
+                  <div key={pos.id} className="grid grid-cols-12 gap-2 px-5 py-3 border-t border-dark-700 text-sm hover:bg-dark-700/30 transition-colors">
+                    <div className="col-span-1 text-gray-500 text-xs pt-0.5">{idx + 1}</div>
+                    <div className="col-span-4">
+                      <p className="text-gray-200 font-medium">{pos.bezeichnung}</p>
+                      {pos.beschreibung && <p className="text-xs text-gray-500 mt-0.5">{pos.beschreibung}</p>}
+                    </div>
+                    <div className="col-span-1 text-right text-gray-300">{pos.menge.toLocaleString('de-DE')}</div>
+                    <div className="col-span-1 text-gray-400 text-xs pt-0.5">{pos.einheit}</div>
+                    <div className="col-span-2 text-right text-gray-300">{fmtEur(pos.einzelpreis)}</div>
+                    <div className="col-span-1 text-right text-gray-400 text-xs pt-0.5">
+                      {pos.mwstSatz}%{pos.rabatt > 0 && <span className="block text-amber-400">-{pos.rabatt}%</span>}
+                    </div>
+                    <div className="col-span-2 text-right font-semibold text-gray-200">{fmtEur(posNetto)}</div>
+                  </div>
+                );
+              })}
+              {/* Summen */}
+              <div className="border-t border-dark-700 px-5 py-3 space-y-1">
+                <div className="flex justify-end gap-8 text-xs text-gray-400">
+                  <span>Netto: <span className="text-gray-300 font-medium">{fmtEur(netto)}</span></span>
+                  <span>MwSt.: <span className="text-gray-300 font-medium">{fmtEur(mwstBetrag)}</span></span>
+                </div>
+                <div className="flex justify-end text-sm font-bold text-gray-100">
+                  Gesamt: <span className="ml-4 text-primary-400">{fmtEur(brutto)}</span>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Zugänge ─────────────────────────────────────────────────────────────────
 
@@ -76,7 +160,7 @@ function ZugangForm({ initial, onSave, onCancel }: {
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-400 mb-1">Passwort / Token</label>
-          <input {...register('passwort')} className={inputCls} type="text" />
+          <input {...register('passwort')} className={inputCls} />
         </div>
         <div className="col-span-2">
           <label className="block text-xs font-medium text-gray-400 mb-1">Notizen</label>
@@ -110,11 +194,7 @@ function ZugangCard({ z, onEdit, onDelete }: { z: ProjektZugang; onEdit: () => v
           <Link2 size={11} />{z.url}
         </a>
       )}
-      {z.benutzername && (
-        <div className="text-xs text-gray-400">
-          <span className="text-gray-500">Nutzer: </span>{z.benutzername}
-        </div>
-      )}
+      {z.benutzername && <div className="text-xs text-gray-400"><span className="text-gray-500">Nutzer: </span>{z.benutzername}</div>}
       {z.passwort && (
         <div className="flex items-center gap-2 text-xs text-gray-400">
           <span className="text-gray-500">Passwort: </span>
@@ -129,12 +209,97 @@ function ZugangCard({ z, onEdit, onDelete }: { z: ProjektZugang; onEdit: () => v
   );
 }
 
-// ─── Kommunikation ────────────────────────────────────────────────────────────
+// ─── Kommunikation mit Dateianhängen ─────────────────────────────────────────
 
-function KomForm({ initial, onSave, onCancel }: {
+function UploadZone({
+  projektId, komId, onUploaded,
+}: { projektId: string; komId: string; onUploaded: (a: KommunikationsAnhang) => void }) {
+  const { user } = useAuth();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+
+  const handleFiles = (files: FileList | null) => {
+    if (!files || !user) return;
+    Array.from(files).forEach(file => {
+      const id = uuidv4();
+      const path = `projects/${user.uid}/${projektId}/${komId}/${id}_${file.name}`;
+      const storageRef = ref(storage, path);
+      const task = uploadBytesResumable(storageRef, file);
+      setUploading(true);
+      task.on('state_changed',
+        snap => setProgress(Math.round(snap.bytesTransferred / snap.totalBytes * 100)),
+        err => { console.error(err); setUploading(false); },
+        async () => {
+          const url = await getDownloadURL(task.snapshot.ref);
+          onUploaded({ id, name: file.name, url, contentType: file.type, groesse: file.size });
+          setUploading(false);
+          setProgress(0);
+        },
+      );
+    });
+  };
+
+  return (
+    <div>
+      <input
+        ref={fileRef} type="file" multiple className="hidden"
+        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.eml,.msg"
+        onChange={e => handleFiles(e.target.files)}
+      />
+      <button
+        type="button"
+        onClick={() => fileRef.current?.click()}
+        disabled={uploading}
+        className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-400 border border-dashed border-dark-600 rounded-lg hover:border-primary-600 hover:text-primary-400 transition-colors disabled:opacity-50"
+      >
+        {uploading ? <><Loader2 size={12} className="animate-spin" />{progress}% hochladen…</> : <><Paperclip size={12} />Datei anhängen</>}
+      </button>
+    </div>
+  );
+}
+
+function AnhangItem({ a, onDelete }: { a: KommunikationsAnhang; onDelete: () => void }) {
+  const isImage = a.contentType.startsWith('image/');
+  const sizeMb = (a.groesse / 1024 / 1024).toFixed(1);
+
+  return (
+    <div className="group relative">
+      {isImage ? (
+        <div className="relative w-24 h-20 rounded-lg overflow-hidden border border-dark-600 bg-dark-900">
+          <img src={a.url} alt={a.name} className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+            <a href={a.url} target="_blank" rel="noopener noreferrer" className="p-1 rounded bg-white/10 text-white hover:bg-white/20 transition-colors" title="Öffnen">
+              <Eye size={12} />
+            </a>
+            <button onClick={onDelete} className="p-1 rounded bg-red-600/80 text-white hover:bg-red-600 transition-colors" title="Löschen">
+              <X size={12} />
+            </button>
+          </div>
+          <p className="absolute bottom-0 left-0 right-0 px-1 py-0.5 bg-black/60 text-white text-xs truncate">{a.name}</p>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 px-3 py-2 bg-dark-900 border border-dark-600 rounded-lg">
+          <FileIcon size={14} className="text-primary-400 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <a href={a.url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary-400 hover:underline truncate block">{a.name}</a>
+            <span className="text-xs text-gray-600">{sizeMb} MB</span>
+          </div>
+          <button onClick={onDelete} className="p-1 rounded text-gray-600 hover:text-red-400 hover:bg-red-900/30 transition-colors opacity-0 group-hover:opacity-100">
+            <X size={12} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function KomForm({ initial, onSave, onCancel, projektId, komId }: {
   initial?: ProjektKommunikation;
   onSave: (k: Omit<ProjektKommunikation, 'id' | 'erstelltAm'>) => void;
   onCancel: () => void;
+  projektId: string;
+  komId: string;
 }) {
   const today = format(new Date(), 'yyyy-MM-dd');
   const { register, handleSubmit } = useForm({
@@ -145,8 +310,23 @@ function KomForm({ initial, onSave, onCancel }: {
       inhalt: initial?.inhalt ?? '',
     },
   });
+  const [anhaenge, setAnhaenge] = useState<KommunikationsAnhang[]>(initial?.anhaenge ?? []);
+  const { user } = useAuth();
+
+  const handleDeleteAnhang = async (a: KommunikationsAnhang) => {
+    if (user) {
+      const path = `projects/${user.uid}/${projektId}/${komId}/${a.id}_${a.name}`;
+      try { await deleteObject(ref(storage, path)); } catch { /* Datei evtl. schon weg */ }
+    }
+    setAnhaenge(prev => prev.filter(x => x.id !== a.id));
+  };
+
+  const submit = (formData: { typ: KommunikationsTyp; datum: string; betreff: string; inhalt: string }) => {
+    onSave({ ...formData, anhaenge });
+  };
+
   return (
-    <form onSubmit={handleSubmit(onSave)} className="space-y-4">
+    <form onSubmit={handleSubmit(submit)} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-xs font-medium text-gray-400 mb-1">Typ</label>
@@ -167,9 +347,27 @@ function KomForm({ initial, onSave, onCancel }: {
         </div>
         <div className="col-span-2">
           <label className="block text-xs font-medium text-gray-400 mb-1">Inhalt</label>
-          <textarea {...register('inhalt')} rows={5} className={`${inputCls} resize-none`} placeholder="Details, Ergebnisse, nächste Schritte…" />
+          <textarea {...register('inhalt')} rows={4} className={`${inputCls} resize-none`} placeholder="Details, Ergebnisse, nächste Schritte…" />
         </div>
       </div>
+
+      {/* Anhänge */}
+      <div>
+        <label className="block text-xs font-medium text-gray-400 mb-2">Anhänge</label>
+        {anhaenge.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-2">
+            {anhaenge.map(a => (
+              <AnhangItem key={a.id} a={a} onDelete={() => handleDeleteAnhang(a)} />
+            ))}
+          </div>
+        )}
+        <UploadZone
+          projektId={projektId}
+          komId={komId}
+          onUploaded={a => setAnhaenge(prev => [...prev, a])}
+        />
+      </div>
+
       <div className="flex justify-end gap-3 pt-2">
         <button type="button" onClick={onCancel} className="px-4 py-2 text-sm rounded-lg border border-dark-700 text-gray-400 hover:bg-dark-700 transition-colors">Abbrechen</button>
         <button type="submit" className="px-4 py-2 text-sm rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-colors">Speichern</button>
@@ -185,7 +383,8 @@ type Tab = 'uebersicht' | 'zugaenge' | 'kommunikation';
 export default function ProjektDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { data, updateProjekt, addZugang, updateZugang, deleteZugang, addKommunikation, updateKommunikation, deleteKommunikation } = useApp();
+  const { user } = useAuth();
+  const { data, updateProjekt, addZugang, updateZugang, deleteZugang, addKommunikation, updateKommunikation, deleteKommunikation, addAnhang, deleteAnhang } = useApp();
 
   const [tab, setTab] = useState<Tab>('uebersicht');
   const [zugangModal, setZugangModal] = useState(false);
@@ -194,6 +393,8 @@ export default function ProjektDetail() {
   const [komModal, setKomModal] = useState(false);
   const [editKom, setEditKom] = useState<ProjektKommunikation | null>(null);
   const [deleteKomId, setDeleteKomId] = useState<string | null>(null);
+  // ID des gerade zu erstellenden/bearbeitenden Eintrags (für Upload-Pfad)
+  const [activeKomId] = useState(() => uuidv4());
 
   const projekt = data.projekte?.find(p => p.id === id);
   if (!projekt) {
@@ -208,21 +409,30 @@ export default function ProjektDetail() {
   const kunde = data.kunden.find(k => k.id === projekt.kundeId);
   const angebot = data.dokumente.find(d => d.id === projekt.angebotId);
 
-  // Status wechseln
   const setStatus = (status: ProjektStatus) => updateProjekt({ ...projekt, status });
 
-  // ── Zugänge
   const saveZugang = async (z: Omit<ProjektZugang, 'id'>) => {
     if (editZugang) await updateZugang(projekt.id, { ...editZugang, ...z });
     else await addZugang(projekt.id, z);
     setZugangModal(false);
   };
 
-  // ── Kommunikation
   const saveKom = async (k: Omit<ProjektKommunikation, 'id' | 'erstelltAm'>) => {
-    if (editKom) await updateKommunikation(projekt.id, { ...editKom, ...k });
-    else await addKommunikation(projekt.id, k);
+    if (editKom) {
+      await updateKommunikation(projekt.id, { ...editKom, ...k });
+    } else {
+      await addKommunikation(projekt.id, { ...k, anhaenge: k.anhaenge ?? [] });
+    }
     setKomModal(false);
+    setEditKom(null);
+  };
+
+  const handleDeleteAnhangFromCard = async (komId: string, anhang: KommunikationsAnhang) => {
+    if (user) {
+      const path = `projects/${user.uid}/${projekt.id}/${komId}/${anhang.id}_${anhang.name}`;
+      try { await deleteObject(ref(storage, path)); } catch { /* ok */ }
+    }
+    await deleteAnhang(projekt.id, komId, anhang.id);
   };
 
   const tabs: { id: Tab; label: string; count?: number }[] = [
@@ -253,7 +463,6 @@ export default function ProjektDetail() {
               <span>Erstellt {format(new Date(projekt.erstelltAm), 'dd.MM.yyyy', { locale: de })}</span>
             </div>
           </div>
-          {/* Status-Schnellwechsel */}
           <select
             value={projekt.status}
             onChange={e => setStatus(e.target.value as ProjektStatus)}
@@ -264,8 +473,6 @@ export default function ProjektDetail() {
             ))}
           </select>
         </div>
-
-        {/* Tabs */}
         <div className="flex gap-1 mt-5">
           {tabs.map(t => (
             <button
@@ -284,12 +491,11 @@ export default function ProjektDetail() {
         </div>
       </div>
 
-      {/* Inhalt */}
       <div className="p-8">
 
-        {/* ── Tab: Übersicht ── */}
+        {/* ── Übersicht ── */}
         {tab === 'uebersicht' && (
-          <div className="space-y-6 max-w-2xl">
+          <div className="space-y-5 max-w-3xl">
             {projekt.beschreibung && (
               <div className="bg-dark-800 border border-dark-700 rounded-2xl p-5">
                 <h3 className="text-sm font-semibold text-gray-400 mb-2">Beschreibung</h3>
@@ -300,53 +506,26 @@ export default function ProjektDetail() {
               <div className="bg-dark-800 border border-dark-700 rounded-2xl p-5">
                 <h3 className="text-sm font-semibold text-gray-400 mb-3">Tags</h3>
                 <div className="flex flex-wrap gap-2">
-                  {projekt.tags.map(tag => (
-                    <span key={tag} className="px-3 py-1 bg-dark-700 text-gray-300 text-sm rounded-full">{tag}</span>
-                  ))}
+                  {projekt.tags.map(tag => <span key={tag} className="px-3 py-1 bg-dark-700 text-gray-300 text-sm rounded-full">{tag}</span>)}
                 </div>
               </div>
             )}
-            {angebot && (
-              <div className="bg-dark-800 border border-dark-700 rounded-2xl p-5">
-                <h3 className="text-sm font-semibold text-gray-400 mb-2">Verknüpftes Angebot</h3>
-                <div className="flex items-center gap-3">
-                  <FileText size={15} className="text-amber-400" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-200">{angebot.nummer}</p>
-                    {angebot.betreff && <p className="text-xs text-gray-500">{angebot.betreff}</p>}
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Angebot mit aufklappbaren Positionen */}
+            {angebot && <AngebotPositionen angebot={angebot} />}
             <div className="bg-dark-800 border border-dark-700 rounded-2xl p-5 grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-xs text-gray-500 mb-0.5">Zugänge</p>
-                <p className="font-semibold text-gray-200">{projekt.zugaenge.length}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 mb-0.5">Kommunikation</p>
-                <p className="font-semibold text-gray-200">{projekt.kommunikation.length}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 mb-0.5">Erstellt am</p>
-                <p className="text-gray-300">{format(new Date(projekt.erstelltAm), 'dd.MM.yyyy', { locale: de })}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 mb-0.5">Zuletzt geändert</p>
-                <p className="text-gray-300">{format(new Date(projekt.geaendertAm), 'dd.MM.yyyy', { locale: de })}</p>
-              </div>
+              <div><p className="text-xs text-gray-500 mb-0.5">Zugänge</p><p className="font-semibold text-gray-200">{projekt.zugaenge.length}</p></div>
+              <div><p className="text-xs text-gray-500 mb-0.5">Kommunikation</p><p className="font-semibold text-gray-200">{projekt.kommunikation.length}</p></div>
+              <div><p className="text-xs text-gray-500 mb-0.5">Erstellt am</p><p className="text-gray-300">{format(new Date(projekt.erstelltAm), 'dd.MM.yyyy', { locale: de })}</p></div>
+              <div><p className="text-xs text-gray-500 mb-0.5">Zuletzt geändert</p><p className="text-gray-300">{format(new Date(projekt.geaendertAm), 'dd.MM.yyyy', { locale: de })}</p></div>
             </div>
           </div>
         )}
 
-        {/* ── Tab: Zugänge & Links ── */}
+        {/* ── Zugänge ── */}
         {tab === 'zugaenge' && (
           <div>
             <div className="flex justify-end mb-4">
-              <button
-                onClick={() => { setEditZugang(null); setZugangModal(true); }}
-                className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
-              >
+              <button onClick={() => { setEditZugang(null); setZugangModal(true); }} className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors">
                 <Plus size={15} /> Zugang hinzufügen
               </button>
             </div>
@@ -358,9 +537,7 @@ export default function ProjektDetail() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {projekt.zugaenge.map(z => (
-                  <ZugangCard
-                    key={z.id}
-                    z={z}
+                  <ZugangCard key={z.id} z={z}
                     onEdit={() => { setEditZugang(z); setZugangModal(true); }}
                     onDelete={() => setDeleteZugangId(z.id)}
                   />
@@ -370,14 +547,11 @@ export default function ProjektDetail() {
           </div>
         )}
 
-        {/* ── Tab: Kommunikation ── */}
+        {/* ── Kommunikation ── */}
         {tab === 'kommunikation' && (
           <div>
             <div className="flex justify-end mb-4">
-              <button
-                onClick={() => { setEditKom(null); setKomModal(true); }}
-                className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
-              >
+              <button onClick={() => { setEditKom(null); setKomModal(true); }} className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors">
                 <Plus size={15} /> Eintrag hinzufügen
               </button>
             </div>
@@ -400,9 +574,7 @@ export default function ProjektDetail() {
                           </span>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-200 truncate">{k.betreff || '(Kein Betreff)'}</p>
-                            <p className="text-xs text-gray-500 mt-0.5">
-                              {format(new Date(k.datum), 'dd.MM.yyyy', { locale: de })}
-                            </p>
+                            <p className="text-xs text-gray-500 mt-0.5">{format(new Date(k.datum), 'dd.MM.yyyy', { locale: de })}</p>
                           </div>
                         </div>
                         <div className="flex gap-1 shrink-0">
@@ -410,9 +582,28 @@ export default function ProjektDetail() {
                           <button onClick={() => setDeleteKomId(k.id)} className="p-1.5 rounded text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors"><Trash2 size={13} /></button>
                         </div>
                       </div>
-                      {k.inhalt && (
-                        <p className="text-sm text-gray-400 mt-3 pt-3 border-t border-dark-700 whitespace-pre-wrap">{k.inhalt}</p>
+                      {k.inhalt && <p className="text-sm text-gray-400 mt-3 pt-3 border-t border-dark-700 whitespace-pre-wrap">{k.inhalt}</p>}
+
+                      {/* Anhänge direkt in der Karte */}
+                      {(k.anhaenge ?? []).length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-dark-700">
+                          <p className="text-xs text-gray-500 mb-2 flex items-center gap-1.5"><Paperclip size={11} />{k.anhaenge!.length} Anhang{k.anhaenge!.length !== 1 ? '¨e' : ''}</p>
+                          <div className="flex flex-wrap gap-2">
+                            {k.anhaenge!.map(a => (
+                              <AnhangItem key={a.id} a={a} onDelete={() => handleDeleteAnhangFromCard(k.id, a)} />
+                            ))}
+                          </div>
+                        </div>
                       )}
+
+                      {/* Schnell-Upload direkt aus der Karte */}
+                      <div className="mt-2">
+                        <UploadZone
+                          projektId={projekt.id}
+                          komId={k.id}
+                          onUploaded={a => addAnhang(projekt.id, k.id, a)}
+                        />
+                      </div>
                     </div>
                   ))}
               </div>
@@ -425,26 +616,18 @@ export default function ProjektDetail() {
       <Modal open={zugangModal} onClose={() => setZugangModal(false)} title={editZugang ? 'Zugang bearbeiten' : 'Zugang hinzufügen'} size="md">
         <ZugangForm initial={editZugang ?? undefined} onSave={saveZugang} onCancel={() => setZugangModal(false)} />
       </Modal>
+      <ConfirmDialog open={!!deleteZugangId} onClose={() => setDeleteZugangId(null)} onConfirm={() => deleteZugang(projekt.id, deleteZugangId!)} title="Zugang löschen" message="Soll dieser Zugang wirklich gelöscht werden?" />
 
-      <ConfirmDialog
-        open={!!deleteZugangId}
-        onClose={() => setDeleteZugangId(null)}
-        onConfirm={() => deleteZugang(projekt.id, deleteZugangId!)}
-        title="Zugang löschen"
-        message="Soll dieser Zugang wirklich gelöscht werden?"
-      />
-
-      <Modal open={komModal} onClose={() => setKomModal(false)} title={editKom ? 'Eintrag bearbeiten' : 'Neuer Eintrag'} size="md">
-        <KomForm initial={editKom ?? undefined} onSave={saveKom} onCancel={() => setKomModal(false)} />
+      <Modal open={komModal} onClose={() => { setKomModal(false); setEditKom(null); }} title={editKom ? 'Eintrag bearbeiten' : 'Neuer Eintrag'} size="md">
+        <KomForm
+          initial={editKom ?? undefined}
+          onSave={saveKom}
+          onCancel={() => { setKomModal(false); setEditKom(null); }}
+          projektId={projekt.id}
+          komId={editKom?.id ?? activeKomId}
+        />
       </Modal>
-
-      <ConfirmDialog
-        open={!!deleteKomId}
-        onClose={() => setDeleteKomId(null)}
-        onConfirm={() => deleteKommunikation(projekt.id, deleteKomId!)}
-        title="Eintrag löschen"
-        message="Soll dieser Kommunikationseintrag wirklich gelöscht werden?"
-      />
+      <ConfirmDialog open={!!deleteKomId} onClose={() => setDeleteKomId(null)} onConfirm={() => deleteKommunikation(projekt.id, deleteKomId!)} title="Eintrag löschen" message="Soll dieser Kommunikationseintrag wirklich gelöscht werden?" />
     </div>
   );
 }
