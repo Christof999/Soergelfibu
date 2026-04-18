@@ -86,6 +86,7 @@ export interface Firma {
   rechnungPrefix: string;
   nextAngebotNr: number;
   nextRechnungNr: number;
+  terminUrl: string;
 }
 
 // ─── Projektmanagement ────────────────────────────────────────────────────────

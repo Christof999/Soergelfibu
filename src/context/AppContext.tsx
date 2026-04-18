@@ -29,6 +29,7 @@ const defaultFirma: Firma = {
   rechnungPrefix: 'RE',
   nextAngebotNr: 1,
   nextRechnungNr: 1,
+  terminUrl: 'https://cal.com/',
 };
 
 const emptyData: AppData = {

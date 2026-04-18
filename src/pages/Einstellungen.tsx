@@ -109,6 +109,9 @@ export default function Einstellungen() {
               {field('Bank', 'bank')}
             </div>
 
+            {section('Akquise')}
+            <div>{field('Termin-Link (Cal.com, Calendly…)', 'terminUrl')}</div>
+
             {section('Nummerierung')}
             <div className="grid grid-cols-2 gap-4">
               {field('Angebots-Präfix (z.B. ANG)', 'angebotPrefix')}
