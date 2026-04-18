@@ -4,6 +4,7 @@ import {
   Sparkles, ChevronDown, ChevronUp, ExternalLink, Trash2,
   TrendingUp, Users,
 } from 'lucide-react';
+import EmailModal from '../components/EmailModal';
 import PageHeader from '../components/PageHeader';
 import { useApp } from '../context/AppContext';
 import { Lead, LeadAnalyse } from '../types';
@@ -169,6 +170,7 @@ export default function Akquise() {
   const { data, upsertLead, deleteLead } = useApp();
 
   const [ansicht, setAnsicht] = useState<Ansicht>('suche');
+  const [emailLead, setEmailLead] = useState<Lead | null>(null);
   const [query, setQuery] = useState('');
   const [plz, setPlz] = useState('91732');
   const [radius, setRadius] = useState('50');
@@ -388,14 +390,12 @@ export default function Akquise() {
                         analysierend={!!analysierend[lead.id]}
                       />
                       {/* E-Mail-Button */}
-                      {lead.email && (
-                        <a
-                          href={`mailto:${lead.email}?subject=Anfrage von SØRGEL-design&body=Guten Tag,%0D%0A%0D%0Aich bin auf Ihr Unternehmen aufmerksam geworden und würde mich freuen, mit Ihnen über mögliche Optimierungen zu sprechen.%0D%0A%0D%0AMit freundlichen Grüßen`}
-                          className="flex items-center justify-center gap-2 px-4 py-2 w-full text-sm font-medium bg-dark-800 border border-dark-700 text-gray-300 rounded-xl hover:bg-dark-700 hover:text-gray-100 transition-colors"
-                        >
-                          <Mail size={14} /> E-Mail schreiben
-                        </a>
-                      )}
+                      <button
+                        onClick={() => setEmailLead(lead)}
+                        className="flex items-center justify-center gap-2 px-4 py-2 w-full text-sm font-medium bg-dark-800 border border-dark-700 text-gray-300 rounded-xl hover:bg-dark-700 hover:text-gray-100 transition-colors"
+                      >
+                        <Mail size={14} /> E-Mail erstellen
+                      </button>
                     </div>
                   ))}
               </div>
@@ -403,6 +403,10 @@ export default function Akquise() {
           </>
         )}
       </div>
+
+      {emailLead && (
+        <EmailModal lead={emailLead} onClose={() => setEmailLead(null)} />
+      )}
     </div>
   );
 }
