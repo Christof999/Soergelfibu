@@ -103,12 +103,21 @@ export interface ProjektZugang {
   notizen: string;
 }
 
+export interface KommunikationsAnhang {
+  id: string;
+  name: string;
+  url: string;
+  contentType: string;
+  groesse: number;
+}
+
 export interface ProjektKommunikation {
   id: string;
   typ: KommunikationsTyp;
   datum: string;
   betreff: string;
   inhalt: string;
+  anhaenge: KommunikationsAnhang[];
   erstelltAm: string;
 }
 
