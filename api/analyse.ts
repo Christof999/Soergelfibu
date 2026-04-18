@@ -61,15 +61,15 @@ Fokus der Optimierungen: Website-Performance, SEO, moderne Darstellung, Conversi
 
   try {
     const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
-            temperature: 0.4,
-            maxOutputTokens: 1024,
+            temperature: 0.6,
+            maxOutputTokens: 2048,
             responseMimeType: 'application/json',
           },
         }),
@@ -79,7 +79,8 @@ Fokus der Optimierungen: Website-Performance, SEO, moderne Darstellung, Conversi
     const geminiData = await geminiRes.json();
 
     if (!geminiRes.ok) {
-      return res.status(500).json({ error: 'Gemini API Fehler', detail: geminiData });
+      const errMsg = geminiData?.error?.message ?? JSON.stringify(geminiData);
+      return res.status(500).json({ error: `Gemini API Fehler: ${errMsg}` });
     }
 
     const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}';
