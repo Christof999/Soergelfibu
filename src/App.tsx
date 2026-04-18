@@ -8,6 +8,8 @@ import Kunden from './pages/Kunden';
 import ArtikelPage from './pages/Artikel';
 import DokumentList from './pages/DokumentList';
 import Einstellungen from './pages/Einstellungen';
+import Projekte from './pages/Projekte';
+import ProjektDetail from './pages/ProjektDetail';
 
 function ProtectedRoutes() {
   const { user, loading } = useAuth();
@@ -26,9 +28,7 @@ function ProtectedRoutes() {
     );
   }
 
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
+  if (!user) return <Navigate to="/login" replace />;
 
   return (
     <AppProvider>
@@ -39,6 +39,8 @@ function ProtectedRoutes() {
           <Route path="artikel" element={<ArtikelPage />} />
           <Route path="angebote" element={<DokumentList typ="angebot" />} />
           <Route path="rechnungen" element={<DokumentList typ="rechnung" />} />
+          <Route path="projekte" element={<Projekte />} />
+          <Route path="projekte/:id" element={<ProjektDetail />} />
           <Route path="einstellungen" element={<Einstellungen />} />
         </Route>
       </Routes>

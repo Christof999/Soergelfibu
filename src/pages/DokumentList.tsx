@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Plus, Pencil, Trash2, Download, Search, FileText, Receipt, Copy } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Pencil, Trash2, Download, Search, FileText, Receipt, Copy, FolderPlus } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -17,7 +18,8 @@ interface Props {
 }
 
 export default function DokumentList({ typ }: Props) {
-  const { data, addDokument, updateDokument, deleteDokument } = useApp();
+  const { data, addDokument, updateDokument, deleteDokument, addProjekt } = useApp();
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editDoc, setEditDoc] = useState<Dokument | null>(null);
@@ -50,6 +52,20 @@ export default function DokumentList({ typ }: Props) {
     const kunde = data.kunden.find(k => k.id === doc.kundeId);
     if (!kunde) return alert('Kunde nicht gefunden.');
     generatePDF(doc, data.firma, kunde);
+  };
+
+  const handleProjektErstellen = async (doc: Dokument) => {
+    const proj = await addProjekt({
+      name: doc.betreff || doc.nummer,
+      beschreibung: '',
+      kundeId: doc.kundeId,
+      angebotId: doc.id,
+      status: 'aktiv',
+      tags: [],
+      zugaenge: [],
+      kommunikation: [],
+    });
+    navigate(`/projekte/${proj.id}`);
   };
 
   const handleDuplicate = async (doc: Dokument) => {
@@ -140,6 +156,11 @@ export default function DokumentList({ typ }: Props) {
                           <button onClick={() => handleDuplicate(doc)} title="Duplizieren" className="p-1.5 rounded-lg text-gray-500 hover:text-violet-400 hover:bg-violet-900/30 transition-colors">
                             <Copy size={14} />
                           </button>
+                          {typ === 'angebot' && (
+                            <button onClick={() => handleProjektErstellen(doc)} title="Projekt erstellen" className="p-1.5 rounded-lg text-gray-500 hover:text-emerald-400 hover:bg-emerald-900/30 transition-colors">
+                              <FolderPlus size={14} />
+                            </button>
+                          )}
                           <button onClick={() => openEdit(doc)} className="p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors">
                             <Pencil size={14} />
                           </button>
