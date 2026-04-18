@@ -216,45 +216,87 @@ function UploadZone({
 }: { projektId: string; komId: string; onUploaded: (a: KommunikationsAnhang) => void }) {
   const { user } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [uploads, setUploads] = useState<{ name: string; progress: number; error?: string }[]>([]);
 
   const handleFiles = (files: FileList | null) => {
     if (!files || !user) return;
     Array.from(files).forEach(file => {
       const id = uuidv4();
-      const path = `projects/${user.uid}/${projektId}/${komId}/${id}_${file.name}`;
+      // Dateinamen bereinigen (Leerzeichen → Unterstrich, Sonderzeichen entfernen)
+      const safeName = file.name.replace(/\s+/g, '_').replace(/[^\w.\-]/g, '');
+      const path = `projects/${user.uid}/${projektId}/${komId}/${id}_${safeName}`;
       const storageRef = ref(storage, path);
-      const task = uploadBytesResumable(storageRef, file);
-      setUploading(true);
-      task.on('state_changed',
-        snap => setProgress(Math.round(snap.bytesTransferred / snap.totalBytes * 100)),
-        err => { console.error(err); setUploading(false); },
+
+      setUploads(prev => [...prev, { name: file.name, progress: 0 }]);
+
+      const task = uploadBytesResumable(storageRef, file, {
+        contentType: file.type || 'application/octet-stream',
+      });
+
+      task.on(
+        'state_changed',
+        snap => {
+          const pct = snap.totalBytes > 0
+            ? Math.round((snap.bytesTransferred / snap.totalBytes) * 100)
+            : 0;
+          setUploads(prev => prev.map(u => u.name === file.name ? { ...u, progress: pct } : u));
+        },
+        err => {
+          console.error('Upload-Fehler:', err.code, err.message);
+          setUploads(prev => prev.map(u =>
+            u.name === file.name ? { ...u, error: `Fehler: ${err.code}` } : u
+          ));
+          setTimeout(() => setUploads(prev => prev.filter(u => u.name !== file.name)), 4000);
+        },
         async () => {
           const url = await getDownloadURL(task.snapshot.ref);
-          onUploaded({ id, name: file.name, url, contentType: file.type, groesse: file.size });
-          setUploading(false);
-          setProgress(0);
+          onUploaded({
+            id,
+            name: file.name,
+            url,
+            contentType: file.type || 'application/octet-stream',
+            groesse: file.size,
+          });
+          setUploads(prev => prev.filter(u => u.name !== file.name));
         },
       );
     });
   };
 
+  const active = uploads.filter(u => !u.error);
+  const errors = uploads.filter(u => u.error);
+
   return (
-    <div>
+    <div className="space-y-1">
       <input
         ref={fileRef} type="file" multiple className="hidden"
-        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.eml,.msg"
-        onChange={e => handleFiles(e.target.files)}
+        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.eml,.msg,.zip"
+        onChange={e => { handleFiles(e.target.files); if (fileRef.current) fileRef.current.value = ''; }}
       />
       <button
         type="button"
         onClick={() => fileRef.current?.click()}
-        disabled={uploading}
-        className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-400 border border-dashed border-dark-600 rounded-lg hover:border-primary-600 hover:text-primary-400 transition-colors disabled:opacity-50"
+        className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-400 border border-dashed border-dark-600 rounded-lg hover:border-primary-600 hover:text-primary-400 transition-colors"
       >
-        {uploading ? <><Loader2 size={12} className="animate-spin" />{progress}% hochladen…</> : <><Paperclip size={12} />Datei anhängen</>}
+        <Paperclip size={12} /> Datei anhängen
       </button>
+      {active.map(u => (
+        <div key={u.name} className="flex items-center gap-2 text-xs text-gray-400">
+          <Loader2 size={11} className="animate-spin shrink-0 text-primary-400" />
+          <div className="flex-1 min-w-0">
+            <div className="flex justify-between mb-0.5">
+              <span className="truncate max-w-[160px]">{u.name}</span>
+              <span className="shrink-0 ml-2 text-primary-400">{u.progress}%</span>
+            </div>
+            <div className="w-full bg-dark-700 rounded-full h-1">
+              <div className="bg-primary-500 h-1 rounded-full transition-all" style={{ width: `${u.progress}%` }} />
+            </div>
+          </div>
+        </div>
+      ))}
+      {errors.map(u => (
+        <p key={u.name} className="text-xs text-red-400">{u.name}: {u.error}</p>
+      ))}
     </div>
   );
 }
