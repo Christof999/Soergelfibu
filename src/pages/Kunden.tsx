@@ -84,7 +84,7 @@ function KundeForm({
 }
 
 export default function Kunden() {
-  const { data, dispatch } = useApp();
+  const { data, addKunde, updateKunde, deleteKunde } = useApp();
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editKunde, setEditKunde] = useState<Kunde | null>(null);
@@ -99,11 +99,11 @@ export default function Kunden() {
   const openCreate = () => { setEditKunde(null); setModalOpen(true); };
   const openEdit = (k: Kunde) => { setEditKunde(k); setModalOpen(true); };
 
-  const handleSave = (formData: FormData) => {
+  const handleSave = async (formData: FormData) => {
     if (editKunde) {
-      dispatch({ type: 'UPDATE_KUNDE', payload: { ...editKunde, ...formData } });
+      await updateKunde({ ...editKunde, ...formData });
     } else {
-      dispatch({ type: 'ADD_KUNDE', payload: formData });
+      await addKunde(formData);
     }
     setModalOpen(false);
   };
@@ -189,23 +189,14 @@ export default function Kunden() {
         )}
       </div>
 
-      <Modal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title={editKunde ? 'Kunde bearbeiten' : 'Neuer Kunde'}
-        size="lg"
-      >
-        <KundeForm
-          initial={editKunde ?? undefined}
-          onSave={handleSave}
-          onCancel={() => setModalOpen(false)}
-        />
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editKunde ? 'Kunde bearbeiten' : 'Neuer Kunde'} size="lg">
+        <KundeForm initial={editKunde ?? undefined} onSave={handleSave} onCancel={() => setModalOpen(false)} />
       </Modal>
 
       <ConfirmDialog
         open={!!deleteId}
         onClose={() => setDeleteId(null)}
-        onConfirm={() => dispatch({ type: 'DELETE_KUNDE', payload: deleteId! })}
+        onConfirm={() => deleteKunde(deleteId!)}
         title="Kunde löschen"
         message="Soll dieser Kunde wirklich gelöscht werden? Diese Aktion kann nicht rückgängig gemacht werden."
       />

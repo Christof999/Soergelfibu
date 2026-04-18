@@ -5,19 +5,19 @@ import { useApp } from '../context/AppContext';
 import { Firma, AppData } from '../types';
 
 export default function Einstellungen() {
-  const { data, dispatch } = useApp();
+  const { data, updateFirma, exportData, importData } = useApp();
 
   const { register, handleSubmit } = useForm<Firma>({
     defaultValues: data.firma,
   });
 
-  const onSubmit = (formData: Firma) => {
-    dispatch({ type: 'UPDATE_FIRMA', payload: { ...data.firma, ...formData } });
+  const onSubmit = async (formData: Firma) => {
+    await updateFirma({ ...data.firma, ...formData });
     alert('Einstellungen gespeichert.');
   };
 
   const handleExport = () => {
-    const json = JSON.stringify(data, null, 2);
+    const json = JSON.stringify(exportData(), null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -37,7 +37,7 @@ export default function Einstellungen() {
       try {
         const text = await file.text();
         const parsed = JSON.parse(text) as AppData;
-        dispatch({ type: 'SET_DATA', payload: parsed });
+        await importData(parsed);
         alert('Daten erfolgreich importiert.');
       } catch {
         alert('Fehler beim Importieren der Datei.');
@@ -68,16 +68,10 @@ export default function Einstellungen() {
         subtitle="Firmendaten und App-Konfiguration"
         actions={
           <div className="flex gap-2">
-            <button
-              onClick={handleImport}
-              className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
-            >
+            <button onClick={handleImport} className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors">
               <Upload size={15} /> Importieren
             </button>
-            <button
-              onClick={handleExport}
-              className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
-            >
+            <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors">
               <Download size={15} /> Exportieren
             </button>
           </div>
@@ -104,9 +98,7 @@ export default function Einstellungen() {
               {field('PLZ', 'plz')}
               {field('Ort', 'ort')}
             </div>
-            <div className="mt-4">
-              {field('Land', 'land')}
-            </div>
+            <div className="mt-4">{field('Land', 'land')}</div>
 
             {section('Bankverbindung')}
             <div className="grid grid-cols-2 gap-4">
@@ -121,39 +113,28 @@ export default function Einstellungen() {
               {field('Rechnungs-Präfix (z.B. RE)', 'rechnungPrefix')}
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Nächste Angebotsnummer</label>
-                <input
-                  type="number"
-                  min="1"
-                  {...register('nextAngebotNr', { valueAsNumber: true })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
+                <input type="number" min="1" {...register('nextAngebotNr', { valueAsNumber: true })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Nächste Rechnungsnummer</label>
-                <input
-                  type="number"
-                  min="1"
-                  {...register('nextRechnungNr', { valueAsNumber: true })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
+                <input type="number" min="1" {...register('nextRechnungNr', { valueAsNumber: true })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
               </div>
             </div>
 
             <div className="flex justify-end mt-6">
-              <button
-                type="submit"
-                className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
-              >
+              <button type="submit" className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors">
                 <Save size={15} /> Speichern
               </button>
             </div>
           </div>
         </form>
 
-        <div className="mt-6 bg-amber-50 border border-amber-200 rounded-2xl p-5">
-          <h3 className="text-sm font-semibold text-amber-800 mb-1">Datensicherung</h3>
-          <p className="text-xs text-amber-700">
-            Alle Daten werden lokal im Browser gespeichert (LocalStorage). Exportiere regelmäßig eine Sicherung als JSON-Datei.
+        <div className="mt-6 bg-emerald-50 border border-emerald-200 rounded-2xl p-5">
+          <h3 className="text-sm font-semibold text-emerald-800 mb-1">Cloud-Synchronisation aktiv</h3>
+          <p className="text-xs text-emerald-700">
+            Deine Daten werden in Echtzeit in Firebase gespeichert und sind auf allen deinen Geräten verfügbar. Der JSON-Export dient als zusätzliche Sicherung.
           </p>
         </div>
       </div>

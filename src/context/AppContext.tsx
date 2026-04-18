@@ -1,4 +1,11 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import {
+  doc,
+  setDoc,
+  onSnapshot,
+} from 'firebase/firestore';
+import { db } from '../firebase/config';
+import { useAuth } from './AuthContext';
 import { AppData, Firma, Kunde, Artikel, Dokument } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -24,25 +31,14 @@ const defaultFirma: Firma = {
   nextRechnungNr: 1,
 };
 
-const initialData: AppData = {
+const emptyData: AppData = {
   firma: defaultFirma,
   kunden: [],
   artikel: [],
   dokumente: [],
 };
 
-type Action =
-  | { type: 'SET_DATA'; payload: AppData }
-  | { type: 'UPDATE_FIRMA'; payload: Firma }
-  | { type: 'ADD_KUNDE'; payload: Omit<Kunde, 'id' | 'erstelltAm' | 'kundennummer'> }
-  | { type: 'UPDATE_KUNDE'; payload: Kunde }
-  | { type: 'DELETE_KUNDE'; payload: string }
-  | { type: 'ADD_ARTIKEL'; payload: Omit<Artikel, 'id' | 'artikelnummer'> }
-  | { type: 'UPDATE_ARTIKEL'; payload: Artikel }
-  | { type: 'DELETE_ARTIKEL'; payload: string }
-  | { type: 'ADD_DOKUMENT'; payload: Omit<Dokument, 'id' | 'nummer' | 'erstelltAm' | 'geaendertAm'> }
-  | { type: 'UPDATE_DOKUMENT'; payload: Dokument }
-  | { type: 'DELETE_DOKUMENT'; payload: string };
+// ─── Hilfsfunktionen für Nummernvergabe ──────────────────────────────────────
 
 function nextKundennummer(kunden: Kunde[]): string {
   const max = kunden.reduce((acc, k) => {
@@ -60,109 +56,153 @@ function nextArtikelnummer(artikel: Artikel[]): string {
   return `ART${String(max + 1).padStart(4, '0')}`;
 }
 
-function reducer(state: AppData, action: Action): AppData {
-  switch (action.type) {
-    case 'SET_DATA':
-      return action.payload;
+// ─── Context Typen ────────────────────────────────────────────────────────────
 
-    case 'UPDATE_FIRMA':
-      return { ...state, firma: action.payload };
-
-    case 'ADD_KUNDE': {
-      const kunde: Kunde = {
-        ...action.payload,
-        id: uuidv4(),
-        kundennummer: nextKundennummer(state.kunden),
-        erstelltAm: new Date().toISOString(),
-      };
-      return { ...state, kunden: [...state.kunden, kunde] };
-    }
-
-    case 'UPDATE_KUNDE':
-      return {
-        ...state,
-        kunden: state.kunden.map(k => k.id === action.payload.id ? action.payload : k),
-      };
-
-    case 'DELETE_KUNDE':
-      return { ...state, kunden: state.kunden.filter(k => k.id !== action.payload) };
-
-    case 'ADD_ARTIKEL': {
-      const artikel: Artikel = {
-        ...action.payload,
-        id: uuidv4(),
-        artikelnummer: nextArtikelnummer(state.artikel),
-      };
-      return { ...state, artikel: [...state.artikel, artikel] };
-    }
-
-    case 'UPDATE_ARTIKEL':
-      return {
-        ...state,
-        artikel: state.artikel.map(a => a.id === action.payload.id ? action.payload : a),
-      };
-
-    case 'DELETE_ARTIKEL':
-      return { ...state, artikel: state.artikel.filter(a => a.id !== action.payload) };
-
-    case 'ADD_DOKUMENT': {
-      const { typ } = action.payload;
-      const prefix = typ === 'angebot' ? state.firma.angebotPrefix : state.firma.rechnungPrefix;
-      const nr = typ === 'angebot' ? state.firma.nextAngebotNr : state.firma.nextRechnungNr;
-      const nummer = `${prefix}-${new Date().getFullYear()}-${String(nr).padStart(4, '0')}`;
-      const now = new Date().toISOString();
-      const dokument: Dokument = {
-        ...action.payload,
-        id: uuidv4(),
-        nummer,
-        erstelltAm: now,
-        geaendertAm: now,
-      };
-      const firma = { ...state.firma };
-      if (typ === 'angebot') firma.nextAngebotNr = nr + 1;
-      else firma.nextRechnungNr = nr + 1;
-      return { ...state, firma, dokumente: [...state.dokumente, dokument] };
-    }
-
-    case 'UPDATE_DOKUMENT':
-      return {
-        ...state,
-        dokumente: state.dokumente.map(d =>
-          d.id === action.payload.id
-            ? { ...action.payload, geaendertAm: new Date().toISOString() }
-            : d
-        ),
-      };
-
-    case 'DELETE_DOKUMENT':
-      return { ...state, dokumente: state.dokumente.filter(d => d.id !== action.payload) };
-
-    default:
-      return state;
-  }
+interface AppContextValue {
+  data: AppData;
+  syncing: boolean;
+  updateFirma: (firma: Firma) => Promise<void>;
+  addKunde: (k: Omit<Kunde, 'id' | 'erstelltAm' | 'kundennummer'>) => Promise<void>;
+  updateKunde: (k: Kunde) => Promise<void>;
+  deleteKunde: (id: string) => Promise<void>;
+  addArtikel: (a: Omit<Artikel, 'id' | 'artikelnummer'>) => Promise<void>;
+  updateArtikel: (a: Artikel) => Promise<void>;
+  deleteArtikel: (id: string) => Promise<void>;
+  addDokument: (d: Omit<Dokument, 'id' | 'nummer' | 'erstelltAm' | 'geaendertAm'>) => Promise<void>;
+  updateDokument: (d: Dokument) => Promise<void>;
+  deleteDokument: (id: string) => Promise<void>;
+  exportData: () => AppData;
+  importData: (data: AppData) => Promise<void>;
 }
 
-const AppContext = createContext<{
-  data: AppData;
-  dispatch: React.Dispatch<Action>;
-} | null>(null);
+const AppContext = createContext<AppContextValue | null>(null);
 
-const STORAGE_KEY = 'soergelfibu_data';
+// ─── Provider ────────────────────────────────────────────────────────────────
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [data, dispatch] = useReducer(reducer, initialData, () => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) return JSON.parse(stored) as AppData;
-    } catch {}
-    return initialData;
-  });
+  const { user } = useAuth();
+  const [data, setData] = useState<AppData>(emptyData);
+  const [syncing, setSyncing] = useState(false);
 
+  // Firestore-Dokument-Pfad für diesen Nutzer
+  const userDocRef = user ? doc(db, 'users', user.uid, 'data', 'main') : null;
+
+  // ── Realtime-Listener: Daten aus Firestore laden ──────────────────────────
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  }, [data]);
+    if (!userDocRef) {
+      setData(emptyData);
+      return;
+    }
 
-  return <AppContext.Provider value={{ data, dispatch }}>{children}</AppContext.Provider>;
+    setSyncing(true);
+    const unsub = onSnapshot(userDocRef, (snap) => {
+      if (snap.exists()) {
+        setData(snap.data() as AppData);
+      } else {
+        // Neuer Nutzer: leere Daten initialisieren
+        setDoc(userDocRef, emptyData);
+      }
+      setSyncing(false);
+    });
+
+    return unsub;
+  }, [user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Hilfsfunktion: Daten in Firestore schreiben ───────────────────────────
+  const persist = useCallback(async (updated: AppData) => {
+    if (!userDocRef) return;
+    setData(updated); // Optimistic update
+    await setDoc(userDocRef, updated);
+  }, [userDocRef]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Firma ─────────────────────────────────────────────────────────────────
+  const updateFirma = async (firma: Firma) => {
+    await persist({ ...data, firma });
+  };
+
+  // ── Kunden ────────────────────────────────────────────────────────────────
+  const addKunde = async (k: Omit<Kunde, 'id' | 'erstelltAm' | 'kundennummer'>) => {
+    const kunde: Kunde = {
+      ...k,
+      id: uuidv4(),
+      kundennummer: nextKundennummer(data.kunden),
+      erstelltAm: new Date().toISOString(),
+    };
+    await persist({ ...data, kunden: [...data.kunden, kunde] });
+  };
+
+  const updateKunde = async (k: Kunde) => {
+    await persist({ ...data, kunden: data.kunden.map(x => x.id === k.id ? k : x) });
+  };
+
+  const deleteKunde = async (id: string) => {
+    await persist({ ...data, kunden: data.kunden.filter(x => x.id !== id) });
+  };
+
+  // ── Artikel ───────────────────────────────────────────────────────────────
+  const addArtikel = async (a: Omit<Artikel, 'id' | 'artikelnummer'>) => {
+    const artikel: Artikel = {
+      ...a,
+      id: uuidv4(),
+      artikelnummer: nextArtikelnummer(data.artikel),
+    };
+    await persist({ ...data, artikel: [...data.artikel, artikel] });
+  };
+
+  const updateArtikel = async (a: Artikel) => {
+    await persist({ ...data, artikel: data.artikel.map(x => x.id === a.id ? a : x) });
+  };
+
+  const deleteArtikel = async (id: string) => {
+    await persist({ ...data, artikel: data.artikel.filter(x => x.id !== id) });
+  };
+
+  // ── Dokumente ─────────────────────────────────────────────────────────────
+  const addDokument = async (d: Omit<Dokument, 'id' | 'nummer' | 'erstelltAm' | 'geaendertAm'>) => {
+    const { typ } = d;
+    const prefix = typ === 'angebot' ? data.firma.angebotPrefix : data.firma.rechnungPrefix;
+    const nr = typ === 'angebot' ? data.firma.nextAngebotNr : data.firma.nextRechnungNr;
+    const nummer = `${prefix}-${new Date().getFullYear()}-${String(nr).padStart(4, '0')}`;
+    const now = new Date().toISOString();
+    const dokument: Dokument = { ...d, id: uuidv4(), nummer, erstelltAm: now, geaendertAm: now };
+    const firma = { ...data.firma };
+    if (typ === 'angebot') firma.nextAngebotNr = nr + 1;
+    else firma.nextRechnungNr = nr + 1;
+    await persist({ ...data, firma, dokumente: [...data.dokumente, dokument] });
+  };
+
+  const updateDokument = async (d: Dokument) => {
+    await persist({
+      ...data,
+      dokumente: data.dokumente.map(x =>
+        x.id === d.id ? { ...d, geaendertAm: new Date().toISOString() } : x
+      ),
+    });
+  };
+
+  const deleteDokument = async (id: string) => {
+    await persist({ ...data, dokumente: data.dokumente.filter(x => x.id !== id) });
+  };
+
+  // ── Import / Export ───────────────────────────────────────────────────────
+  const exportData = () => data;
+
+  const importData = async (imported: AppData) => {
+    await persist(imported);
+  };
+
+  return (
+    <AppContext.Provider value={{
+      data, syncing,
+      updateFirma,
+      addKunde, updateKunde, deleteKunde,
+      addArtikel, updateArtikel, deleteArtikel,
+      addDokument, updateDokument, deleteDokument,
+      exportData, importData,
+    }}>
+      {children}
+    </AppContext.Provider>
+  );
 }
 
 export function useApp() {

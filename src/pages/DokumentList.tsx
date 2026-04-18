@@ -17,7 +17,7 @@ interface Props {
 }
 
 export default function DokumentList({ typ }: Props) {
-  const { data, dispatch } = useApp();
+  const { data, addDokument, updateDokument, deleteDokument } = useApp();
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editDoc, setEditDoc] = useState<Dokument | null>(null);
@@ -37,11 +37,11 @@ export default function DokumentList({ typ }: Props) {
   const openCreate = () => { setEditDoc(null); setModalOpen(true); };
   const openEdit = (d: Dokument) => { setEditDoc(d); setModalOpen(true); };
 
-  const handleSave = (payload: Omit<Dokument, 'id' | 'nummer' | 'erstelltAm' | 'geaendertAm'> | Dokument) => {
+  const handleSave = async (payload: Omit<Dokument, 'id' | 'nummer' | 'erstelltAm' | 'geaendertAm'> | Dokument) => {
     if ('id' in payload && payload.id) {
-      dispatch({ type: 'UPDATE_DOKUMENT', payload: payload as Dokument });
+      await updateDokument(payload as Dokument);
     } else {
-      dispatch({ type: 'ADD_DOKUMENT', payload: payload as Omit<Dokument, 'id' | 'nummer' | 'erstelltAm' | 'geaendertAm'> });
+      await addDokument(payload as Omit<Dokument, 'id' | 'nummer' | 'erstelltAm' | 'geaendertAm'>);
     }
     setModalOpen(false);
   };
@@ -52,22 +52,19 @@ export default function DokumentList({ typ }: Props) {
     generatePDF(doc, data.firma, kunde);
   };
 
-  const handleDuplicate = (doc: Dokument) => {
-    dispatch({
-      type: 'ADD_DOKUMENT',
-      payload: {
-        typ: doc.typ,
-        kundeId: doc.kundeId,
-        datum: new Date().toISOString().slice(0, 10),
-        gueltigBis: doc.gueltigBis,
-        faelligAm: doc.faelligAm,
-        betreff: `Kopie von ${doc.betreff || doc.nummer}`,
-        notizen: doc.notizen,
-        zahlungsziel: doc.zahlungsziel,
-        skonto: doc.skonto,
-        positionen: doc.positionen,
-        status: 'entwurf',
-      },
+  const handleDuplicate = async (doc: Dokument) => {
+    await addDokument({
+      typ: doc.typ,
+      kundeId: doc.kundeId,
+      datum: new Date().toISOString().slice(0, 10),
+      gueltigBis: doc.gueltigBis,
+      faelligAm: doc.faelligAm,
+      betreff: `Kopie von ${doc.betreff || doc.nummer}`,
+      notizen: doc.notizen,
+      zahlungsziel: doc.zahlungsziel,
+      skonto: doc.skonto,
+      positionen: doc.positionen,
+      status: 'entwurf',
     });
   };
 
@@ -134,35 +131,19 @@ export default function DokumentList({ typ }: Props) {
                         {format(new Date(doc.datum), 'dd.MM.yyyy', { locale: de })}
                       </td>
                       <td className="px-5 py-3 text-right font-semibold text-gray-900">{fmtEur(brutto)}</td>
-                      <td className="px-5 py-3">
-                        <StatusBadge status={doc.status} />
-                      </td>
+                      <td className="px-5 py-3"><StatusBadge status={doc.status} /></td>
                       <td className="px-5 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => handlePDF(doc)}
-                            title="PDF herunterladen"
-                            className="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
-                          >
+                          <button onClick={() => handlePDF(doc)} title="PDF" className="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-primary-50 transition-colors">
                             <Download size={14} />
                           </button>
-                          <button
-                            onClick={() => handleDuplicate(doc)}
-                            title="Duplizieren"
-                            className="p-1.5 rounded-lg text-gray-400 hover:text-violet-600 hover:bg-violet-50 transition-colors"
-                          >
+                          <button onClick={() => handleDuplicate(doc)} title="Duplizieren" className="p-1.5 rounded-lg text-gray-400 hover:text-violet-600 hover:bg-violet-50 transition-colors">
                             <Copy size={14} />
                           </button>
-                          <button
-                            onClick={() => openEdit(doc)}
-                            className="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
-                          >
+                          <button onClick={() => openEdit(doc)} className="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-primary-50 transition-colors">
                             <Pencil size={14} />
                           </button>
-                          <button
-                            onClick={() => setDeleteId(doc.id)}
-                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                          >
+                          <button onClick={() => setDeleteId(doc.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors">
                             <Trash2 size={14} />
                           </button>
                         </div>
@@ -176,24 +157,14 @@ export default function DokumentList({ typ }: Props) {
         )}
       </div>
 
-      <Modal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title={editDoc ? `${typLabel} bearbeiten` : `Neues ${typLabel}`}
-        size="xl"
-      >
-        <DokumentEditor
-          typ={typ}
-          initial={editDoc ?? undefined}
-          onSave={handleSave}
-          onCancel={() => setModalOpen(false)}
-        />
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editDoc ? `${typLabel} bearbeiten` : `Neues ${typLabel}`} size="xl">
+        <DokumentEditor typ={typ} initial={editDoc ?? undefined} onSave={handleSave} onCancel={() => setModalOpen(false)} />
       </Modal>
 
       <ConfirmDialog
         open={!!deleteId}
         onClose={() => setDeleteId(null)}
-        onConfirm={() => dispatch({ type: 'DELETE_DOKUMENT', payload: deleteId! })}
+        onConfirm={() => deleteDokument(deleteId!)}
         title={`${typLabel} löschen`}
         message={`Soll dieses ${typLabel} wirklich gelöscht werden?`}
       />
