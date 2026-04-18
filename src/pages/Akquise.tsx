@@ -145,6 +145,12 @@ function LeadKarte({
                 </ul>
               </div>
             )}
+            {lead.analyse.websiteGeladen === false && (
+              <div className="flex items-start gap-1.5 px-3 py-2 bg-amber-900/20 border border-amber-800/40 rounded-lg text-xs text-amber-300">
+                <span className="shrink-0 mt-0.5">⚠</span>
+                Website konnte nicht automatisch geladen werden (Bot-Schutz o.ä.) – Analyse basiert nur auf Name und Branche. Ergebnisse können ungenau sein.
+              </div>
+            )}
             <p className="text-xs text-gray-600">
               Analysiert am {format(new Date(lead.analyse.analysiertAm), 'dd.MM.yyyy HH:mm', { locale: de })}
             </p>

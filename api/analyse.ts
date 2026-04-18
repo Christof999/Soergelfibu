@@ -1,5 +1,44 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
+async function fetchSeite(url: string, timeoutMs = 8000): Promise<string> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      signal: ctrl.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'de-DE,de;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+      },
+    });
+    clearTimeout(t);
+    if (!res.ok) return '';
+    const html = await res.text();
+    return html
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  } catch {
+    clearTimeout(t);
+    return '';
+  }
+}
+
+function basisUrl(website: string): string {
+  const url = website.startsWith('http') ? website : `https://${website}`;
+  try {
+    const u = new URL(url);
+    return `${u.protocol}//${u.host}`;
+  } catch {
+    return url;
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -12,52 +51,72 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const GEMINI_KEY = process.env.GEMINI_API_KEY;
   if (!GEMINI_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY nicht konfiguriert' });
 
-  // Website-Inhalt laden (mit Timeout)
-  let websiteInhalt = '';
-  if (website) {
-    try {
-      const ctrl = new AbortController();
-      const timeout = setTimeout(() => ctrl.abort(), 8000);
-      const htmlRes = await fetch(website.startsWith('http') ? website : `https://${website}`, {
-        signal: ctrl.signal,
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AkquiseTool/1.0)' },
-      });
-      clearTimeout(timeout);
-      const html = await htmlRes.text();
-      // HTML bereinigen – nur Text extrahieren
-      websiteInhalt = html
-        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-        .slice(0, 6000);
-    } catch {
-      websiteInhalt = 'Website konnte nicht geladen werden.';
-    }
+  // Hauptseite + Impressum parallel laden
+  let hauptseite = '';
+  let impressum = '';
+  const hatWebsite = !!website;
+
+  if (hatWebsite) {
+    const basis = basisUrl(website);
+    const hauptUrl = website.startsWith('http') ? website : `https://${website}`;
+
+    // Impressum-Kandidaten (häufige deutsche URLs)
+    const impressumKandidaten = [
+      `${basis}/impressum`,
+      `${basis}/impressum.html`,
+      `${basis}/impressum.php`,
+      `${basis}/ueber-uns`,
+      `${basis}/kontakt`,
+    ];
+
+    [hauptseite, ...([impressum] = await Promise.all([
+      fetchSeite(hauptUrl),
+      // Ersten erfolgreichen Impressum-Kandidaten verwenden
+      (async () => {
+        for (const u of impressumKandidaten) {
+          const text = await fetchSeite(u, 5000);
+          if (text.length > 100) return text;
+        }
+        return '';
+      })(),
+    ]))] ;
+
+    hauptseite = hauptseite.slice(0, 4000);
+    impressum = impressum.slice(0, 2000);
   }
 
-  const prompt = `Du bist ein Experte für digitales Marketing und Webdesign. Analysiere folgendes Unternehmen und seine Website.
+  const hatInhalt = hauptseite.length > 50 || impressum.length > 50;
+
+  const prompt = `Du bist ein Experte für digitales Marketing und Webdesign. Analysiere folgendes Unternehmen.
 
 Unternehmen: ${name}
 Branche: ${branche ?? 'Unbekannt'}
-Website: ${website || 'keine Website'}
+Website: ${website || 'keine Website angegeben'}
 
-Website-Inhalt (Auszug):
-${websiteInhalt || 'Kein Inhalt verfügbar'}
+=== INHALT DER STARTSEITE (automatisch abgerufen) ===
+${hauptseite || 'Konnte nicht geladen werden (z.B. Bot-Schutz oder Timeout)'}
 
-Bitte gib genau folgendes zurück (als JSON, kein Markdown):
+=== IMPRESSUM / KONTAKT (automatisch abgerufen) ===
+${impressum || 'Nicht gefunden'}
+
+WICHTIGE REGELN – halte dich STRIKT daran:
+1. Erfinde KEINE Fakten. Wenn etwas nicht aus dem Seiteninhalt hervorgeht, schreib es NICHT.
+2. Ansprechpartner: Nur angeben wenn ein konkreter Name im Impressum steht. Sonst leerer String "".
+3. Responsivität/Design: Beurteile NUR was aus dem Text erkennbar ist. Mache KEINE Annahmen über das visuelle Design.
+4. Wenn die Website nicht geladen werden konnte, analysiere nur anhand des Unternehmensnamens und der Branche.
+5. Optimierungen sollen KONKRET und UMSETZBAR sein, nicht generisch.
+
+Antworte ausschließlich als JSON (kein Markdown, kein Text drumherum):
 {
   "optimierungen": [
-    "Konkrete Optimierung 1 (max. 2 Sätze)",
-    "Konkrete Optimierung 2 (max. 2 Sätze)",
-    "Konkrete Optimierung 3 (max. 2 Sätze)"
+    "Optimierung 1 – konkret und auf dieses Unternehmen bezogen (1-2 Sätze)",
+    "Optimierung 2 – konkret und auf dieses Unternehmen bezogen (1-2 Sätze)",
+    "Optimierung 3 – konkret und auf dieses Unternehmen bezogen (1-2 Sätze)"
   ],
-  "ansprechpartner": "Name des Inhabers/Ansprechpartners aus dem Impressum oder leerem String",
-  "zusammenfassung": "1-2 Sätze: Was macht das Unternehmen, warum ist es ein guter Lead?"
-}
-
-Fokus der Optimierungen: Website-Performance, SEO, moderne Darstellung, Conversion-Optimierung, fehlende Elemente. Sei konkret und auf das Unternehmen bezogen.`;
+  "ansprechpartner": "Vollständiger Name aus dem Impressum oder leerer String",
+  "zusammenfassung": "Was macht das Unternehmen und warum ist es als Lead interessant? (1-2 Sätze, nur belegte Fakten)",
+  "websiteGeladen": ${hatInhalt}
+}`;
 
   try {
     const geminiRes = await fetch(
@@ -68,7 +127,7 @@ Fokus der Optimierungen: Website-Performance, SEO, moderne Darstellung, Conversi
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
-            temperature: 0.6,
+            temperature: 0.2,
             maxOutputTokens: 2048,
             responseMimeType: 'application/json',
           },
@@ -85,16 +144,21 @@ Fokus der Optimierungen: Website-Performance, SEO, moderne Darstellung, Conversi
 
     const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}';
 
-    let parsed: { optimierungen: string[]; ansprechpartner: string; zusammenfassung: string };
+    let parsed: {
+      optimierungen: string[];
+      ansprechpartner: string;
+      zusammenfassung: string;
+      websiteGeladen?: boolean;
+    };
     try {
       parsed = JSON.parse(rawText);
     } catch {
-      // Fallback: versuche JSON aus dem Text zu extrahieren
       const match = rawText.match(/\{[\s\S]*\}/);
       parsed = match ? JSON.parse(match[0]) : {
-        optimierungen: ['Analyse konnte nicht vollständig durchgeführt werden.'],
+        optimierungen: ['Analyse konnte nicht durchgeführt werden.'],
         ansprechpartner: '',
         zusammenfassung: rawText.slice(0, 200),
+        websiteGeladen: false,
       };
     }
 
@@ -102,6 +166,7 @@ Fokus der Optimierungen: Website-Performance, SEO, moderne Darstellung, Conversi
       optimierungen: parsed.optimierungen?.slice(0, 3) ?? [],
       ansprechpartner: parsed.ansprechpartner ?? '',
       zusammenfassung: parsed.zusammenfassung ?? '',
+      websiteGeladen: hatInhalt,
       analysiertAm: new Date().toISOString(),
     });
   } catch (err) {
