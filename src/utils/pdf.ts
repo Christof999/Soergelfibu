@@ -5,6 +5,11 @@ import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { berechneGesamtsummen } from './berechnungen';
 
+// Anthrazit-Palette
+const ANTHRAZIT: [number, number, number] = [45, 55, 72];
+const ANTHRAZIT_LIGHT: [number, number, number] = [75, 85, 99];
+const ANTHRAZIT_ROW: [number, number, number] = [243, 244, 246];
+
 function fmtDate(iso: string) {
   return format(new Date(iso), 'dd.MM.yyyy', { locale: de });
 }
@@ -20,12 +25,13 @@ export function generatePDF(dokument: Dokument, firma: Firma, kunde: Kunde) {
   const margin = 20;
   const pageWidth = doc.internal.pageSize.getWidth();
 
-  // Kopfzeile Firma
+  // Kopfzeile: Firmenname
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(18);
-  doc.setTextColor(37, 99, 235);
+  doc.setTextColor(...ANTHRAZIT);
   doc.text(firma.name, margin, 22);
 
+  // Firmenadresse rechts
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(80, 80, 80);
@@ -41,11 +47,11 @@ export function generatePDF(dokument: Dokument, firma: Firma, kunde: Kunde) {
   doc.text(firmaInfo, pageWidth - margin, 14, { align: 'right' });
 
   // Trennlinie
-  doc.setDrawColor(37, 99, 235);
+  doc.setDrawColor(...ANTHRAZIT_LIGHT);
   doc.setLineWidth(0.5);
   doc.line(margin, 38, pageWidth - margin, 38);
 
-  // Empfänger
+  // Empfänger-Anschrift
   doc.setFontSize(8);
   doc.setTextColor(120, 120, 120);
   doc.text(`${firma.name} · ${firma.strasse} · ${firma.plz} ${firma.ort}`, margin, 46);
@@ -53,7 +59,7 @@ export function generatePDF(dokument: Dokument, firma: Firma, kunde: Kunde) {
   doc.setFontSize(10);
   doc.setTextColor(30, 30, 30);
   doc.setFont('helvetica', 'bold');
-  doc.text(kunde.firma || `${kunde.ansprechpartner}`, margin, 53);
+  doc.text(kunde.firma || kunde.ansprechpartner, margin, 53);
   doc.setFont('helvetica', 'normal');
   const empfaenger = [
     kunde.ansprechpartner,
@@ -63,7 +69,7 @@ export function generatePDF(dokument: Dokument, firma: Firma, kunde: Kunde) {
   ].filter(Boolean);
   doc.text(empfaenger, margin, 58);
 
-  // Dokumentdetails (rechts)
+  // Dokumentdetails rechts
   const detailsX = pageWidth / 2 + 10;
   let detailY = 46;
   const addDetail = (label: string, value: string) => {
@@ -82,11 +88,11 @@ export function generatePDF(dokument: Dokument, firma: Firma, kunde: Kunde) {
   if (dokument.gueltigBis) addDetail('Gültig bis:', fmtDate(dokument.gueltigBis));
   if (dokument.faelligAm) addDetail('Fällig am:', fmtDate(dokument.faelligAm));
 
-  // Betreff / Titel
+  // Titel
   let y = 85;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
-  doc.setTextColor(37, 99, 235);
+  doc.setTextColor(...ANTHRAZIT);
   doc.text(`${typLabel} ${dokument.nummer}`, margin, y);
   y += 6;
 
@@ -109,9 +115,7 @@ export function generatePDF(dokument: Dokument, firma: Firma, kunde: Kunde) {
       const nettoBetrag = pos.menge * pos.einzelpreis * (1 - pos.rabatt / 100);
       return [
         String(idx + 1),
-        pos.beschreibung
-          ? `${pos.bezeichnung}\n${pos.beschreibung}`
-          : pos.bezeichnung,
+        pos.beschreibung ? `${pos.bezeichnung}\n${pos.beschreibung}` : pos.bezeichnung,
         pos.menge.toLocaleString('de-DE'),
         pos.einheit,
         fmtEur(pos.einzelpreis),
@@ -120,8 +124,8 @@ export function generatePDF(dokument: Dokument, firma: Firma, kunde: Kunde) {
       ];
     }),
     styles: { font: 'helvetica', fontSize: 9, cellPadding: 3 },
-    headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
-    alternateRowStyles: { fillColor: [239, 246, 255] },
+    headStyles: { fillColor: ANTHRAZIT, textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: ANTHRAZIT_ROW },
     columnStyles: {
       0: { cellWidth: 10 },
       2: { halign: 'right', cellWidth: 16 },
@@ -133,9 +137,9 @@ export function generatePDF(dokument: Dokument, firma: Firma, kunde: Kunde) {
   });
 
   // Summenblock
-  const finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
+  const tableEndY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY;
   const sumX = pageWidth - margin - 70;
-  let sy = finalY;
+  let sy = tableEndY + 8;
 
   const addSumRow = (label: string, value: string, bold = false, color?: [number, number, number]) => {
     doc.setFont('helvetica', bold ? 'bold' : 'normal');
@@ -143,27 +147,29 @@ export function generatePDF(dokument: Dokument, firma: Firma, kunde: Kunde) {
     doc.setTextColor(...(color ?? ([30, 30, 30] as [number, number, number])));
     doc.text(label, sumX, sy);
     doc.text(value, pageWidth - margin, sy, { align: 'right' });
-    sy += 6;
+    sy += 6.5;
   };
 
   addSumRow('Nettobetrag:', fmtEur(netto));
+
   const mwstGruppen = new Map<number, number>();
   dokument.positionen.forEach(pos => {
     const betrag = pos.menge * pos.einzelpreis * (1 - pos.rabatt / 100);
     mwstGruppen.set(pos.mwstSatz, (mwstGruppen.get(pos.mwstSatz) ?? 0) + betrag * (pos.mwstSatz / 100));
   });
-  mwstGruppen.forEach((betrag, satz) => {
-    addSumRow(`MwSt. ${satz}%:`, fmtEur(betrag));
-  });
+  mwstGruppen.forEach((betrag, satz) => addSumRow(`MwSt. ${satz}%:`, fmtEur(betrag)));
 
   if (dokument.skonto > 0) {
     addSumRow(`Skonto ${dokument.skonto}%:`, `– ${fmtEur(brutto * dokument.skonto / 100)}`);
   }
 
-  doc.setDrawColor(37, 99, 235);
+  // Trennlinie VOR Gesamtbetrag — jetzt NACH allen Zeilen gezeichnet
+  sy += 1;
+  doc.setDrawColor(...ANTHRAZIT_LIGHT);
   doc.setLineWidth(0.4);
-  doc.line(sumX, sy - 2, pageWidth - margin, sy - 2);
-  addSumRow('Gesamtbetrag:', fmtEur(brutto), true, [37, 99, 235]);
+  doc.line(sumX, sy, pageWidth - margin, sy);
+  sy += 5;
+  addSumRow('Gesamtbetrag:', fmtEur(brutto), true, ANTHRAZIT);
 
   // Fußtext
   let footY = Math.max(sy + 12, 240);
@@ -183,7 +189,7 @@ export function generatePDF(dokument: Dokument, firma: Firma, kunde: Kunde) {
   if (dokument.typ === 'rechnung') {
     doc.setTextColor(80, 80, 80);
     doc.text(
-      `Bitte überweisen Sie den Betrag von ${fmtEur(brutto)} bis zum ${dokument.faelligAm ? fmtDate(dokument.faelligAm) : '–'} auf folgendes Konto:`,
+      `Bitte überweisen Sie ${fmtEur(brutto)} bis zum ${dokument.faelligAm ? fmtDate(dokument.faelligAm) : '–'} auf folgendes Konto:`,
       margin,
       footY,
     );
@@ -192,7 +198,7 @@ export function generatePDF(dokument: Dokument, firma: Firma, kunde: Kunde) {
     doc.text(`IBAN: ${firma.iban}  |  BIC: ${firma.bic}  |  ${firma.bank}`, margin, footY);
   }
 
-  // Fußzeile (Seitenzahl)
+  // Fußzeile
   doc.setFontSize(8);
   doc.setTextColor(150, 150, 150);
   doc.text(

@@ -10,6 +10,7 @@ import {
   LogOut,
   Cloud,
   CloudOff,
+  FolderKanban,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
@@ -20,6 +21,7 @@ const navItems = [
   { to: '/artikel', label: 'Artikel', icon: Package },
   { to: '/angebote', label: 'Angebote', icon: FileText },
   { to: '/rechnungen', label: 'Rechnungen', icon: Receipt },
+  { to: '/projekte', label: 'Projekte', icon: FolderKanban },
   { to: '/einstellungen', label: 'Einstellungen', icon: Settings },
 ];
 

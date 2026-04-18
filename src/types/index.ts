@@ -88,9 +88,48 @@ export interface Firma {
   nextRechnungNr: number;
 }
 
+// ─── Projektmanagement ────────────────────────────────────────────────────────
+
+export type ProjektStatus = 'aktiv' | 'pausiert' | 'abgeschlossen' | 'archiviert';
+
+export type KommunikationsTyp = 'gespraech' | 'email' | 'notiz' | 'meeting';
+
+export interface ProjektZugang {
+  id: string;
+  bezeichnung: string;
+  url: string;
+  benutzername: string;
+  passwort: string;
+  notizen: string;
+}
+
+export interface ProjektKommunikation {
+  id: string;
+  typ: KommunikationsTyp;
+  datum: string;
+  betreff: string;
+  inhalt: string;
+  erstelltAm: string;
+}
+
+export interface Projekt {
+  id: string;
+  name: string;
+  beschreibung: string;
+  kundeId: string;
+  angebotId: string;
+  status: ProjektStatus;
+  tags: string[];
+  zugaenge: ProjektZugang[];
+  kommunikation: ProjektKommunikation[];
+  erstelltAm: string;
+  geaendertAm: string;
+}
+
 export interface AppData {
   firma: Firma;
   kunden: Kunde[];
   artikel: Artikel[];
   dokumente: Dokument[];
+  projekte: Projekt[];
 }
