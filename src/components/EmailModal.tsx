@@ -268,6 +268,9 @@ export default function EmailModal({ lead, onClose }: Props) {
                 <span className="flex items-center gap-2">In Mail-App öffnen (mailto)</span>
                 <ExternalLink size={12} className="opacity-60" />
               </button>
+              <p className="text-[11px] text-gray-600 leading-snug">
+                Hinweis: <span className="text-gray-500">mailto</span> kann nur <strong className="text-gray-500 font-medium">Klartext</strong> übergeben — das Layout aus der Vorschau gibt es im Browser nicht. Für das <strong className="text-gray-500 font-medium">HTML-Design</strong> „Jetzt versenden“ (Resend) oder HTML kopieren und in der Mail-App einfügen.
+              </p>
               <div className="grid grid-cols-3 gap-1.5">
                 <button onClick={copyHtml} className="flex flex-col items-center gap-1 px-2 py-2 border border-dark-700 rounded-lg text-gray-400 hover:bg-dark-700 hover:text-gray-200 transition-colors">
                   <Copy size={13} /><span className="text-xs">HTML</span>
