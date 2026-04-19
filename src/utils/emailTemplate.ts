@@ -1,18 +1,32 @@
+import type { OptimierungPunkt } from '../types';
+
 export interface EmailVars {
   customerName: string;
   companyName: string;
   websiteUrl: string;
   ctaUrl: string;
-  /** Exakt 3 Optimierungen aus der KI-Analyse oder Fallback-Texte */
-  optimierungen: [string, string, string];
+  /** Exakt 3 Punkte: Überschrift + Kunden-Empfehlung (für E-Mail-Template) */
+  optimierungen: [OptimierungPunkt, OptimierungPunkt, OptimierungPunkt];
   preheader?: string;
   subject: string;
 }
 
-const FALLBACK_OPT: [string, string, string] = [
-  'Mobile wirkt nicht wie ein gepflegter Auftritt. Über 60 % Ihrer Besucher kommen vom Smartphone — dort zählt jede Sekunde.',
-  'Google findet Sie für die wichtigen Begriffe nicht. Titel, Meta-Daten und Struktur sagen zu wenig über Ihr Angebot.',
-  'Das Erscheinungsbild passt nicht mehr zur Qualität Ihrer Arbeit. Besucher entscheiden in 0,05 Sekunden, ob ein Unternehmen seriös wirkt.',
+const FALLBACK_OPT: [OptimierungPunkt, OptimierungPunkt, OptimierungPunkt] = [
+  {
+    titel: 'Mobile Nutzung',
+    empfehlung:
+      'Über die Hälfte Ihrer Besucher kommt vom Smartphone — dort entscheidet sich oft in Sekunden, ob jemand bleibt oder abspringt. Prüfen Sie die Darstellung auf kleinen Screens und die Ladezeiten gezielt.',
+  },
+  {
+    titel: 'Auffindbarkeit bei Google',
+    empfehlung:
+      'Titel, Kurzbeschreibung und Überschriften sollten klar sagen, was Sie anbieten und wo Sie tätig sind — das hilft Suchmaschinen und Besuchern gleichermaßen.',
+  },
+  {
+    titel: 'Erster Eindruck & Vertrauen',
+    empfehlung:
+      'Besucher bewerten Seriosität sehr schnell. Ein konsistentes Erscheinungsbild und klare nächste Schritte (z. B. Kontakt, Termin) erhöhen die Bereitschaft zur Anfrage.',
+  },
 ];
 
 function esc(s: string): string {
@@ -38,34 +52,14 @@ function opt(idx: number, title: string, body: string): string {
 </table>`;
 }
 
-/** Aus einem Optimierungs-String Titel + Body extrahieren (Trennzeichen: Punkt / Strich) */
-function splitOpt(raw: string): { title: string; body: string } {
-  // Versuche am ersten Satzende zu trennen
-  const dotIdx = raw.search(/[.!?]/);
-  if (dotIdx > 10 && dotIdx < raw.length - 10) {
-    return {
-      title: raw.slice(0, dotIdx + 1).trim(),
-      body: raw.slice(dotIdx + 1).trim(),
-    };
-  }
-  // Fallback: erste 60 Zeichen als Titel
-  const words = raw.split(' ');
-  let title = '';
-  let i = 0;
-  while (i < words.length && title.length < 60) { title += (title ? ' ' : '') + words[i++]; }
-  return { title: title || raw, body: words.slice(i).join(' ') };
-}
-
 export function buildEmailHtml(vars: EmailVars): string {
-  const opts = vars.optimierungen.length === 3
-    ? vars.optimierungen
-    : FALLBACK_OPT;
+  const opts =
+    vars.optimierungen?.length === 3 ? vars.optimierungen : FALLBACK_OPT;
 
-  const parsed = opts.map(o => splitOpt(o)) as [
-    { title: string; body: string },
-    { title: string; body: string },
-    { title: string; body: string }
-  ];
+  const parsed = opts.map((p, i) => ({
+    title: (p.titel ?? '').trim() || `Empfehlung ${i + 1}`,
+    body: (p.empfehlung ?? '').trim(),
+  })) as [{ title: string; body: string }, { title: string; body: string }, { title: string; body: string }];
 
   const preheader = vars.preheader
     ?? `3 konkrete Punkte auf ${vars.websiteUrl}, die Sie heute Kunden kosten — 15 Min. Gespräch, kostenlos.`;
@@ -231,16 +225,17 @@ export function buildSubject(lead: { name: string; website: string }): string {
 }
 
 export function buildPlainText(vars: EmailVars): string {
-  const opts = vars.optimierungen.length === 3 ? vars.optimierungen : FALLBACK_OPT;
+  const opts = vars.optimierungen?.length === 3 ? vars.optimierungen : FALLBACK_OPT;
+  const lines = opts.map((p, i) => {
+    const t = p.titel?.trim() || `Punkt ${i + 1}`;
+    const e = p.empfehlung?.trim() || '';
+    return `0${i + 1} · ${t}\n   ${e}`;
+  });
   return `Hallo ${vars.customerName},
 
 ich habe mir ${vars.websiteUrl} angesehen. Drei Punkte kosten Sie messbar Anfragen:
 
-01 · ${opts[0]}
-
-02 · ${opts[1]}
-
-03 · ${opts[2]}
+${lines.join('\n\n')}
 
 Mein Angebot: 15 Minuten am Telefon. Ich zeige Ihnen die drei Punkte konkret an Ihrer Seite — kein Verkaufsgespräch, kein Haken.
 

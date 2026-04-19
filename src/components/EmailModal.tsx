@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { X, Copy, Download, Send, RefreshCw, ExternalLink } from 'lucide-react';
 import { Lead } from '../types';
 import { buildEmailHtml, buildSubject, buildPlainText, EmailVars } from '../utils/emailTemplate';
+import { normalizeOptimierungenListe } from '../utils/leadAnalyse';
 import { useApp } from '../context/AppContext';
 
 interface Props {
@@ -23,19 +24,14 @@ export default function EmailModal({ lead, onClose }: Props) {
   const analyse = lead.analyse;
 
   // Variablen — alle editierbar
-  const [vars, setVars] = useState<EmailVars>(() => {
-    const opt1 = analyse?.optimierungen[0] ?? '';
-    const opt2 = analyse?.optimierungen[1] ?? '';
-    const opt3 = analyse?.optimierungen[2] ?? '';
-    return {
-      customerName: analyse?.ansprechpartner || 'Guten Tag',
-      companyName: lead.name,
-      websiteUrl: lead.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''),
-      ctaUrl: firma.terminUrl || 'https://cal.com/',
-      optimierungen: [opt1, opt2, opt3] as [string, string, string],
-      subject: buildSubject(lead),
-    };
-  });
+  const [vars, setVars] = useState<EmailVars>(() => ({
+    customerName: analyse?.ansprechpartner || 'Guten Tag',
+    companyName: lead.name,
+    websiteUrl: lead.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''),
+    ctaUrl: firma.terminUrl || 'https://cal.com/',
+    optimierungen: normalizeOptimierungenListe(analyse?.optimierungen),
+    subject: buildSubject(lead),
+  }));
 
   const [tab, setTab] = useState<'vorschau' | 'felder'>('felder');
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -63,10 +59,16 @@ export default function EmailModal({ lead, onClose }: Props) {
   }, [onClose]);
 
   const set = (k: keyof EmailVars, v: string) => setVars(p => ({ ...p, [k]: v }));
-  const setOpt = (idx: 0 | 1 | 2, v: string) =>
+  const setOptTitel = (idx: 0 | 1 | 2, titel: string) =>
     setVars(p => {
-      const o = [...p.optimierungen] as [string, string, string];
-      o[idx] = v;
+      const o = [...p.optimierungen] as EmailVars['optimierungen'];
+      o[idx] = { ...o[idx], titel };
+      return { ...p, optimierungen: o };
+    });
+  const setOptEmpfehlung = (idx: 0 | 1 | 2, empfehlung: string) =>
+    setVars(p => {
+      const o = [...p.optimierungen] as EmailVars['optimierungen'];
+      o[idx] = { ...o[idx], empfehlung };
       return { ...p, optimierungen: o };
     });
 
@@ -175,15 +177,27 @@ export default function EmailModal({ lead, onClose }: Props) {
                   )}
                 </div>
                 {([0, 1, 2] as const).map(idx => (
-                  <div key={idx} className="space-y-1">
-                    <label className="block text-xs text-gray-500">Punkt {idx + 1}</label>
-                    <textarea
-                      rows={3}
-                      className={inputCls}
-                      value={vars.optimierungen[idx]}
-                      onChange={e => setOpt(idx, e.target.value)}
-                      placeholder={`Optimierung ${idx + 1}…`}
-                    />
+                  <div key={idx} className="space-y-2 rounded-lg border border-dark-700/80 p-3 bg-dark-900/40">
+                    <p className="text-xs font-medium text-gray-400">Punkt {idx + 1}</p>
+                    <div className="space-y-1">
+                      <label className="block text-xs text-gray-500">Überschrift (wie im E-Mail)</label>
+                      <input
+                        className={inputCls}
+                        value={vars.optimierungen[idx].titel}
+                        onChange={e => setOptTitel(idx, e.target.value)}
+                        placeholder="Kurze Überschrift"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-xs text-gray-500">Empfehlung an den Kunden (Sie-Form)</label>
+                      <textarea
+                        rows={3}
+                        className={inputCls}
+                        value={vars.optimierungen[idx].empfehlung}
+                        onChange={e => setOptEmpfehlung(idx, e.target.value)}
+                        placeholder="Direkte, konkrete Empfehlung für die E-Mail…"
+                      />
+                    </div>
                   </div>
                 ))}
               </div>

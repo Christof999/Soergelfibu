@@ -8,6 +8,7 @@ import EmailModal from '../components/EmailModal';
 import PageHeader from '../components/PageHeader';
 import { useApp } from '../context/AppContext';
 import { Lead, LeadAnalyse } from '../types';
+import { parseOptimierungPunkt } from '../utils/leadAnalyse';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -134,15 +135,18 @@ function LeadKarte({
             {lead.analyse.optimierungen.length > 0 && (
               <div>
                 <p className="text-xs font-semibold text-gray-400 mb-1.5 flex items-center gap-1.5">
-                  <TrendingUp size={11} /> Optimierungspotenziale
+                  <TrendingUp size={11} /> Empfehlungen für die Ansprache
                 </p>
-                <ul className="space-y-1.5">
-                  {lead.analyse.optimierungen.map((opt, i) => (
-                    <li key={i} className="flex items-start gap-2 text-xs text-gray-300">
-                      <span className="shrink-0 w-4 h-4 rounded-full bg-primary-700/50 text-primary-300 flex items-center justify-center text-xs font-bold mt-0.5">{i + 1}</span>
-                      {opt}
-                    </li>
-                  ))}
+                <ul className="space-y-2">
+                  {lead.analyse.optimierungen.map((raw, i) => {
+                    const { titel, empfehlung } = parseOptimierungPunkt(raw, i);
+                    return (
+                      <li key={i} className="text-xs text-gray-300 border border-dark-700/80 rounded-lg p-2.5 bg-dark-900/30">
+                        <p className="font-semibold text-gray-200 mb-1">{titel}</p>
+                        {empfehlung && <p className="text-gray-400 leading-relaxed">{empfehlung}</p>}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}
