@@ -3,7 +3,6 @@ import { X, Copy, Download, Send, RefreshCw, ExternalLink } from 'lucide-react';
 import { Lead } from '../types';
 import { buildEmailHtml, buildSubject, buildPlainText, EmailVars } from '../utils/emailTemplate';
 import { normalizeOptimierungenListe } from '../utils/leadAnalyse';
-import { useApp } from '../context/AppContext';
 
 interface Props {
   lead: Lead;
@@ -19,8 +18,6 @@ function toast(msg: string) {
 }
 
 export default function EmailModal({ lead, onClose }: Props) {
-  const { data } = useApp();
-  const firma = data.firma;
   const analyse = lead.analyse;
 
   // Variablen — alle editierbar
@@ -28,7 +25,6 @@ export default function EmailModal({ lead, onClose }: Props) {
     customerName: analyse?.ansprechpartner || 'Guten Tag',
     companyName: lead.name,
     websiteUrl: lead.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''),
-    ctaUrl: firma.terminUrl || 'https://cal.com/',
     optimierungen: normalizeOptimierungenListe(analyse?.optimierungen),
     subject: buildSubject(lead),
   }));
@@ -160,10 +156,6 @@ export default function EmailModal({ lead, onClose }: Props) {
                 <div className="space-y-1">
                   <label className="block text-xs text-gray-500">Betreff</label>
                   <input className={inputCls} value={vars.subject} onChange={e => set('subject', e.target.value)} />
-                </div>
-                <div className="space-y-1 mt-3">
-                  <label className="block text-xs text-gray-500">Termin-Link (CTA)</label>
-                  <input className={inputCls} value={vars.ctaUrl} onChange={e => set('ctaUrl', e.target.value)} placeholder="https://cal.com/..." />
                 </div>
               </div>
 

@@ -4,7 +4,6 @@ export interface EmailVars {
   customerName: string;
   companyName: string;
   websiteUrl: string;
-  ctaUrl: string;
   /** Exakt 3 Punkte: Überschrift + Kunden-Empfehlung (für E-Mail-Template) */
   optimierungen: [OptimierungPunkt, OptimierungPunkt, OptimierungPunkt];
   preheader?: string;
@@ -62,7 +61,7 @@ export function buildEmailHtml(vars: EmailVars): string {
   })) as [{ title: string; body: string }, { title: string; body: string }, { title: string; body: string }];
 
   const preheader = vars.preheader
-    ?? `3 konkrete Punkte auf ${vars.websiteUrl}, die Sie heute Kunden kosten — 15 Min. Gespräch, kostenlos.`;
+    ?? `Drei konkrete Punkte zu ${vars.websiteUrl} — antworten Sie einfach auf diese E-Mail.`;
 
   return `<!DOCTYPE html>
 <html lang="de">
@@ -82,7 +81,6 @@ export function buildEmailHtml(vars: EmailVars): string {
     .container{width:100%!important}
     .px{padding-left:24px!important;padding-right:24px!important}
     .h1{font-size:28px!important;line-height:1.15!important}
-    .cta-btn{width:100%!important;box-sizing:border-box}
   }
 </style>
 </head>
@@ -152,34 +150,16 @@ export function buildEmailHtml(vars: EmailVars): string {
           </td>
         </tr>
 
-        <!-- Accent quote -->
+        <!-- Nächster Schritt: Antwort -->
         <tr>
-          <td style="background:#FFFFFF;padding:16px 48px 40px 48px;" class="px">
+          <td style="background:#FFFFFF;padding:16px 48px 48px 48px;" class="px">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0A0A0A;border-radius:14px;">
               <tr>
                 <td style="padding:28px 32px;">
-                  <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:0.22em;color:#C94A1C;text-transform:uppercase;padding-bottom:10px;">Mein Angebot</div>
+                  <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:0.22em;color:#C94A1C;text-transform:uppercase;padding-bottom:10px;">Nächster Schritt</div>
                   <div style="font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;color:#FFFFFF;font-weight:400;">
-                    15 Minuten am Telefon. Ich zeige Ihnen die drei Punkte konkret an Ihrer Seite — <span style="color:#BFB8AE;">kein Verkaufsgespräch, kein Haken.</span>
+                    Antworten Sie einfach auf diese E-Mail — dann besprechen wir die drei Punkte und ich übernehme die Umsetzung <span style="color:#BFB8AE;">gerne im Auftrag für Sie.</span>
                   </div>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-
-        <!-- CTA -->
-        <tr>
-          <td style="background:#FFFFFF;padding:0 48px 48px 48px;" align="left" class="px">
-            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-              <tr>
-                <td align="center" style="background:#0A0A0A;border-radius:10px;">
-                  <a href="${esc(vars.ctaUrl)}" class="cta-btn" style="display:inline-block;padding:16px 28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;color:#FFFFFF;text-decoration:none;letter-spacing:-0.005em;">
-                    Kostenloses 15-Min-Gespräch buchen&nbsp;&nbsp;→
-                  </a>
-                </td>
-                <td style="padding-left:14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;color:#8A8178;">
-                  oder einfach auf diese Mail antworten.
                 </td>
               </tr>
             </table>
@@ -237,9 +217,7 @@ ich habe mir ${vars.websiteUrl} angesehen. Drei Punkte kosten Sie messbar Anfrag
 
 ${lines.join('\n\n')}
 
-Mein Angebot: 15 Minuten am Telefon. Ich zeige Ihnen die drei Punkte konkret an Ihrer Seite — kein Verkaufsgespräch, kein Haken.
-
-Termin buchen: ${vars.ctaUrl}
+Nächster Schritt: Antworten Sie einfach auf diese E-Mail — dann besprechen wir die drei Punkte und ich übernehme die Umsetzung gerne im Auftrag für Sie.
 
 Viele Grüße
 Christof Sörgel
