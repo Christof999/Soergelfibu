@@ -65,7 +65,7 @@ function LeadKarte({
               {lead.website && (
                 <p className="flex items-center gap-1.5">
                   <Globe size={10} />
-                  <a href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`} target="_blank" rel="noopener noreferrer" className="hover:text-primary-400 truncate max-w-[220px] flex items-center gap-1">
+                  <a href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`} target="_blank" rel="noopener noreferrer" className="hover:text-primary-400 break-all min-w-0 flex items-center gap-1">
                     {lead.website.replace(/^https?:\/\/(www\.)?/, '')} <ExternalLink size={9} />
                   </a>
                 </p>
@@ -256,15 +256,16 @@ export default function Akquise() {
       />
 
       {/* Tab-Leiste */}
-      <div className="flex gap-1 px-8 pt-4 pb-0 border-b border-dark-700">
+      <div className="flex gap-1 px-4 sm:px-8 pt-4 pb-0 border-b border-dark-700 overflow-x-auto scrollbar-thin">
         {([
           { id: 'suche', label: 'Suche & Entdecken' },
           { id: 'potentiell', label: `Potentielle Kunden${potentielle.length > 0 ? ` (${potentielle.length})` : ''}` },
         ] as { id: Ansicht; label: string }[]).map(t => (
           <button
+            type="button"
             key={t.id}
             onClick={() => setAnsicht(t.id)}
-            className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors border-b-2 -mb-px ${
+            className={`px-3 sm:px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors border-b-2 -mb-px whitespace-nowrap shrink-0 ${
               ansicht === t.id
                 ? 'border-primary-500 text-primary-300 bg-dark-800'
                 : 'border-transparent text-gray-500 hover:text-gray-300'
@@ -275,16 +276,16 @@ export default function Akquise() {
         ))}
       </div>
 
-      <div className="p-8 space-y-6">
+      <div className="page-padding space-y-6">
 
         {/* ── Suche ── */}
         {ansicht === 'suche' && (
           <>
             {/* Suchformular */}
-            <div className="bg-dark-800 border border-dark-700 rounded-2xl p-5 space-y-4">
+            <div className="bg-dark-800 border border-dark-700 rounded-2xl p-4 sm:p-5 space-y-4">
               <h2 className="text-sm font-semibold text-gray-300">Unternehmen finden</h2>
-              <div className="grid grid-cols-12 gap-3">
-                <div className="col-span-5">
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                <div className="sm:col-span-5">
                   <label className="block text-xs font-medium text-gray-500 mb-1">Branche / Suchbegriff</label>
                   <input
                     value={query}
@@ -294,7 +295,7 @@ export default function Akquise() {
                     className="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
-                <div className="col-span-2">
+                <div className="sm:col-span-2">
                   <label className="block text-xs font-medium text-gray-500 mb-1">PLZ</label>
                   <input
                     value={plz}
@@ -302,7 +303,7 @@ export default function Akquise() {
                     className="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
-                <div className="col-span-2">
+                <div className="sm:col-span-2">
                   <label className="block text-xs font-medium text-gray-500 mb-1">Umkreis (km)</label>
                   <select
                     value={radius}
@@ -316,8 +317,9 @@ export default function Akquise() {
                     <option value="100">100 km</option>
                   </select>
                 </div>
-                <div className="col-span-3 flex items-end">
+                <div className="sm:col-span-3 flex items-end">
                   <button
+                    type="button"
                     onClick={suchen}
                     disabled={sucht || !query.trim()}
                     className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"

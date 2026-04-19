@@ -20,8 +20,8 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-dark-900 flex items-center justify-center p-4">
-      <div className="bg-dark-800 border border-dark-700 rounded-2xl shadow-2xl w-full max-w-sm p-8">
+    <div className="min-h-[100dvh] bg-dark-900 flex items-center justify-center p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <div className="bg-dark-800 border border-dark-700 rounded-2xl shadow-2xl w-full max-w-sm p-6 sm:p-8">
         <div className="flex flex-col items-center mb-8">
           <div className="w-14 h-14 bg-primary-600 rounded-2xl flex items-center justify-center mb-4">
             <span className="text-white font-bold text-xl">SØ</span>
