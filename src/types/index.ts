@@ -87,6 +87,11 @@ export interface Firma {
   nextAngebotNr: number;
   nextRechnungNr: number;
   terminUrl: string;
+  /**
+   * Geschätzte Gesamt-Steuerlast auf den Gewinn (Umsatz − Ausgaben), in %.
+   * Nur für die Dashboard-Anzeige — keine Steuerberatung.
+   */
+  dashboardSteuerSchaetzungProzent: number;
 }
 
 // ─── Projektmanagement ────────────────────────────────────────────────────────

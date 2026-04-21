@@ -112,6 +112,24 @@ export default function Einstellungen() {
             {section('Akquise')}
             <div>{field('Termin-Link (Cal.com, Calendly…)', 'terminUrl')}</div>
 
+            {section('Dashboard')}
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1">
+                Geschätzte Steuerlast auf Gewinn (%)
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step={0.5}
+                {...register('dashboardSteuerSchaetzungProzent', { valueAsNumber: true })}
+                className={inputCls}
+              />
+              <p className="text-xs text-gray-600 mt-1.5">
+                Wird für die Kachel „Gewinn nach Steuer“ auf dem Dashboard verwendet (vereinfachte Schätzung, keine Steuerberatung).
+              </p>
+            </div>
+
             {section('Nummerierung')}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {field('Angebots-Präfix (z.B. ANG)', 'angebotPrefix')}

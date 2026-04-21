@@ -31,6 +31,7 @@ const defaultFirma: Firma = {
   nextAngebotNr: 1,
   nextRechnungNr: 1,
   terminUrl: 'https://cal.com/',
+  dashboardSteuerSchaetzungProzent: 30,
 };
 
 const emptyData: AppData = {
@@ -131,6 +132,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setData({
           ...emptyData,
           ...d,
+          firma: { ...emptyData.firma, ...d.firma },
           projekte: d.projekte ?? [],
           leads: d.leads ?? [],
           eingangsrechnungen: d.eingangsrechnungen ?? [],
