@@ -169,6 +169,19 @@ export interface Lead {
   erstelltAm: string;
 }
 
+/** Eingehende Rechnung (Zahlungsverpflichtung) für Fibu / Steuer */
+export interface Eingangsrechnung {
+  id: string;
+  lieferant: string;
+  rechnungsnummer: string;
+  /** Bruttobetrag in EUR */
+  betragBrutto: number;
+  /** Fälligkeitsdatum (ISO yyyy-mm-dd), Gruppierung nach Monat */
+  faelligAm: string;
+  notizen: string;
+  erstelltAm: string;
+}
+
 export interface AppData {
   firma: Firma;
   kunden: Kunde[];
@@ -176,4 +189,5 @@ export interface AppData {
   dokumente: Dokument[];
   projekte: Projekt[];
   leads: Lead[];
+  eingangsrechnungen: Eingangsrechnung[];
 }

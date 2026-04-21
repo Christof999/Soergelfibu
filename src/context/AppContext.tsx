@@ -6,7 +6,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from './AuthContext';
-import { AppData, Firma, Kunde, Artikel, Dokument, Projekt, ProjektZugang, ProjektKommunikation, KommunikationsAnhang, Lead } from '../types';
+import { AppData, Firma, Kunde, Artikel, Dokument, Projekt, ProjektZugang, ProjektKommunikation, KommunikationsAnhang, Lead, Eingangsrechnung } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
 const defaultFirma: Firma = {
@@ -39,6 +39,7 @@ const emptyData: AppData = {
   dokumente: [],
   projekte: [],
   leads: [],
+  eingangsrechnungen: [],
 };
 
 // ─── Firestore erlaubt keine undefined-Werte ──────────────────────────────────
@@ -102,6 +103,9 @@ interface AppContextValue {
   deleteAnhang: (projektId: string, komId: string, anhangId: string) => Promise<void>;
   upsertLead: (lead: Lead) => Promise<void>;
   deleteLead: (id: string) => Promise<void>;
+  addEingangsrechnung: (e: Omit<Eingangsrechnung, 'id' | 'erstelltAm'>) => Promise<void>;
+  updateEingangsrechnung: (e: Eingangsrechnung) => Promise<void>;
+  deleteEingangsrechnung: (id: string) => Promise<void>;
   exportData: () => AppData;
   importData: (data: AppData) => Promise<void>;
 }
@@ -123,7 +127,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const unsub = onSnapshot(userDocRef, (snap) => {
       if (snap.exists()) {
         const d = snap.data() as AppData;
-        setData({ ...emptyData, ...d, projekte: d.projekte ?? [], leads: d.leads ?? [] });
+        setData({
+          ...emptyData,
+          ...d,
+          projekte: d.projekte ?? [],
+          leads: d.leads ?? [],
+          eingangsrechnungen: d.eingangsrechnungen ?? [],
+        });
       } else {
         setDoc(userDocRef, sanitize(emptyData));
       }
@@ -226,9 +236,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const deleteLead = async (id: string) =>
     persist({ ...data, leads: (data.leads ?? []).filter(l => l.id !== id) });
 
+  // ── Eingangsrechnungen (Fibu) ─────────────────────────────────────────────
+  const addEingangsrechnung = async (e: Omit<Eingangsrechnung, 'id' | 'erstelltAm'>) => {
+    const row: Eingangsrechnung = {
+      ...e,
+      id: uuidv4(),
+      erstelltAm: new Date().toISOString(),
+    };
+    await persist({ ...data, eingangsrechnungen: [...(data.eingangsrechnungen ?? []), row] });
+  };
+  const updateEingangsrechnung = async (e: Eingangsrechnung) =>
+    persist({
+      ...data,
+      eingangsrechnungen: (data.eingangsrechnungen ?? []).map(x => x.id === e.id ? e : x),
+    });
+  const deleteEingangsrechnung = async (id: string) =>
+    persist({ ...data, eingangsrechnungen: (data.eingangsrechnungen ?? []).filter(x => x.id !== id) });
+
   // ── Import / Export ───────────────────────────────────────────────────────
   const exportData = () => data;
-  const importData = async (imported: AppData) => persist(imported);
+  const importData = async (imported: AppData) =>
+    persist({
+      ...emptyData,
+      ...imported,
+      projekte: imported.projekte ?? [],
+      leads: imported.leads ?? [],
+      eingangsrechnungen: imported.eingangsrechnungen ?? [],
+    });
 
   return (
     <AppContext.Provider value={{
@@ -242,6 +276,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addKommunikation, updateKommunikation, deleteKommunikation,
       addAnhang, deleteAnhang,
       upsertLead, deleteLead,
+      addEingangsrechnung, updateEingangsrechnung, deleteEingangsrechnung,
       exportData, importData,
     }}>
       {children}

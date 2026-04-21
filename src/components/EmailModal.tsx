@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Copy, Download, Send, RefreshCw, ExternalLink } from 'lucide-react';
 import { Lead } from '../types';
-import { buildEmailHtml, buildSubject, buildPlainText, EmailVars } from '../utils/emailTemplate';
+import { buildEmailHtml, buildSubject, buildPlainText, EmailVars, DEFAULT_EMAIL_VORSTELLUNG } from '../utils/emailTemplate';
 import { normalizeOptimierungenListe } from '../utils/leadAnalyse';
 
 interface Props {
@@ -28,6 +28,7 @@ export default function EmailModal({ lead, onClose }: Props) {
     companyName: lead.name,
     websiteUrl: lead.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''),
     optimierungen: normalizeOptimierungenListe(analyse?.optimierungen),
+    vorstellung: DEFAULT_EMAIL_VORSTELLUNG,
     subject: buildSubject(lead),
   }));
 
@@ -240,6 +241,17 @@ export default function EmailModal({ lead, onClose }: Props) {
                     </div>
                   </div>
                 ))}
+              </div>
+
+              <div className="border-t border-dark-700 pt-4 space-y-2">
+                <label className="block text-xs text-gray-500">Kurzvorstellung (nach den drei Punkten)</label>
+                <textarea
+                  rows={5}
+                  className={inputCls}
+                  value={vars.vorstellung ?? ''}
+                  onChange={e => set('vorstellung', e.target.value)}
+                  placeholder={DEFAULT_EMAIL_VORSTELLUNG}
+                />
               </div>
             </div>
 
