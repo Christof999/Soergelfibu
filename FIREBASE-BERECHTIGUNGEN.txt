@@ -1,0 +1,45 @@
+Firebase – Berechtigungen für diese App
+========================================
+
+1) WAS IST WO GESPEICHERT?
+
+   • Firestore (Textdaten: Kunden, Fibu-Einträge, …)
+     Datei: firestore.rules
+
+   • Storage (Dateien: PDFs unter fibu/…, Projekt-Anhänge unter projects/…)
+     Datei: storage.rules
+
+   Beide Dateien liegen im Projektroot. Sie sind die „Berechtigungen“ – erst
+   nach dem Hochladen zu Google/Firebase gelten sie online.
+
+
+2) EINMALIG AKTIVIEREN (auf deinem Rechner, im Projektordner)
+
+   a) Bei Google anmelden:
+      npx firebase-tools@latest login
+
+   b) Richtiges Projekt wählen (muss zu deiner App passen):
+      npx firebase-tools@latest use soergelfibu
+
+   c) Regeln hochladen:
+
+      Nur Storage (PDFs Fibu / Anhänge):
+      npx firebase-tools@latest deploy --only storage
+
+      Nur Firestore:
+      npx firebase-tools@latest deploy --only firestore:rules
+
+      Beides:
+      npx firebase-tools@latest deploy --only storage,firestore:rules
+
+
+3) WENN „SPEICHERN“ IN DER FIBU FEHLSCHLÄGT
+
+   Häufig sind die storage.rules noch nicht deployed. Schritt 2c für Storage
+   ausführen, dann die App neu laden und erneut speichern.
+
+
+4) PROJEKT-ID
+
+   In firebase.json ist der Storage-Bucket eingetragen. Das Projekt heißt
+   laut Konfiguration: soergelfibu
