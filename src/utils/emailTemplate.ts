@@ -14,6 +14,9 @@ export interface EmailVars {
 
 export const DEFAULT_EMAIL_VORSTELLUNG = `Mein Name ist Christof — ich weiß aus der Praxis, worauf es bei mittelständischen Handwerksbetrieben ankommt. Ich stehe Ihnen persönlich zur Verfügung: Gemeinsam können wir Ihre Abläufe mit smarten Anwendungen im Unternehmen verbessern und Prozesse spürbar effizienter machen.`;
 
+/** Call-to-Action: Kontaktformular (Akquise-E-Mail) */
+export const DEFAULT_AKQUISE_KONTAKT_URL = 'https://soergel-design.de/kontakt';
+
 const FALLBACK_OPT: [OptimierungPunkt, OptimierungPunkt, OptimierungPunkt] = [
   {
     titel: 'Mobile Nutzung',
@@ -65,7 +68,7 @@ export function buildEmailHtml(vars: EmailVars): string {
   })) as [{ title: string; body: string }, { title: string; body: string }, { title: string; body: string }];
 
   const preheader = vars.preheader
-    ?? `Drei konkrete Punkte zu ${vars.websiteUrl} — antworten Sie einfach auf diese E-Mail.`;
+    ?? `Drei konkrete Punkte zu ${vars.websiteUrl} — Kontakt über soergel-design.de/kontakt.`;
 
   const vorstellung = (vars.vorstellung ?? DEFAULT_EMAIL_VORSTELLUNG).trim();
 
@@ -170,15 +173,25 @@ export function buildEmailHtml(vars: EmailVars): string {
           </td>
         </tr>
 
-        <!-- Nächster Schritt: Antwort -->
+        <!-- Nächster Schritt: Kontaktformular -->
         <tr>
           <td style="background:#FFFFFF;padding:16px 48px 48px 48px;" class="px">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0A0A0A;border-radius:14px;">
               <tr>
                 <td style="padding:28px 32px;">
                   <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:0.22em;color:#C94A1C;text-transform:uppercase;padding-bottom:10px;">Nächster Schritt</div>
-                  <div style="font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;color:#FFFFFF;font-weight:400;">
-                    Antworten Sie einfach auf diese E-Mail — dann besprechen wir die drei Punkte und ich übernehme die Umsetzung <span style="color:#BFB8AE;">gerne im Auftrag für Sie.</span>
+                  <div style="font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;color:#FFFFFF;font-weight:400;padding-bottom:18px;">
+                    Schreiben Sie mir gern über das <span style="color:#BFB8AE;">Kontaktformular</span> — dann besprechen wir die drei Punkte und ich übernehme die Umsetzung gerne im Auftrag für Sie.
+                  </div>
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td style="border-radius:10px;background:#C94A1C;" align="center">
+                        <a href="${DEFAULT_AKQUISE_KONTAKT_URL}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:14px 28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;color:#FFFFFF;text-decoration:none;">Zum Kontaktformular</a>
+                      </td>
+                    </tr>
+                  </table>
+                  <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:#9A928A;padding-top:14px;">
+                    <a href="${DEFAULT_AKQUISE_KONTAKT_URL}" target="_blank" rel="noopener noreferrer" style="color:#BFB8AE;text-decoration:underline;text-underline-offset:2px;">${esc(DEFAULT_AKQUISE_KONTAKT_URL)}</a>
                   </div>
                 </td>
               </tr>
@@ -240,7 +253,8 @@ ${lines.join('\n\n')}
 
 ${vorstellung}
 
-Nächster Schritt: Antworten Sie einfach auf diese E-Mail — dann besprechen wir die drei Punkte und ich übernehme die Umsetzung gerne im Auftrag für Sie.
+Nächster Schritt: Schreiben Sie mir gern über das Kontaktformular — dann besprechen wir die drei Punkte und ich übernehme die Umsetzung gerne im Auftrag für Sie.
+${DEFAULT_AKQUISE_KONTAKT_URL}
 
 Viele Grüße
 Christof Sörgel
