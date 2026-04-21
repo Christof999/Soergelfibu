@@ -4,7 +4,8 @@ import {
   setDoc,
   onSnapshot,
 } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import { db, storage } from '../firebase/config';
+import { ref, deleteObject } from 'firebase/storage';
 import { useAuth } from './AuthContext';
 import { AppData, Firma, Kunde, Artikel, Dokument, Projekt, ProjektZugang, ProjektKommunikation, KommunikationsAnhang, Lead, Eingangsrechnung } from '../types';
 import { v4 as uuidv4 } from 'uuid';
@@ -103,7 +104,7 @@ interface AppContextValue {
   deleteAnhang: (projektId: string, komId: string, anhangId: string) => Promise<void>;
   upsertLead: (lead: Lead) => Promise<void>;
   deleteLead: (id: string) => Promise<void>;
-  addEingangsrechnung: (e: Omit<Eingangsrechnung, 'id' | 'erstelltAm'>) => Promise<void>;
+  addEingangsrechnung: (e: Omit<Eingangsrechnung, 'id' | 'erstelltAm'> & { id?: string }) => Promise<void>;
   updateEingangsrechnung: (e: Eingangsrechnung) => Promise<void>;
   deleteEingangsrechnung: (id: string) => Promise<void>;
   exportData: () => AppData;
@@ -237,10 +238,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     persist({ ...data, leads: (data.leads ?? []).filter(l => l.id !== id) });
 
   // ── Eingangsrechnungen (Fibu) ─────────────────────────────────────────────
-  const addEingangsrechnung = async (e: Omit<Eingangsrechnung, 'id' | 'erstelltAm'>) => {
+  const addEingangsrechnung = async (e: Omit<Eingangsrechnung, 'id' | 'erstelltAm'> & { id?: string }) => {
+    const { id: presetId, ...rest } = e;
     const row: Eingangsrechnung = {
-      ...e,
-      id: uuidv4(),
+      ...(rest as Omit<Eingangsrechnung, 'id' | 'erstelltAm'>),
+      id: presetId ?? uuidv4(),
       erstelltAm: new Date().toISOString(),
     };
     await persist({ ...data, eingangsrechnungen: [...(data.eingangsrechnungen ?? []), row] });
@@ -250,8 +252,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...data,
       eingangsrechnungen: (data.eingangsrechnungen ?? []).map(x => x.id === e.id ? e : x),
     });
-  const deleteEingangsrechnung = async (id: string) =>
-    persist({ ...data, eingangsrechnungen: (data.eingangsrechnungen ?? []).filter(x => x.id !== id) });
+  const deleteEingangsrechnung = async (id: string) => {
+    const row = (data.eingangsrechnungen ?? []).find(x => x.id === id);
+    if (row?.pdfStoragePath && user) {
+      try {
+        await deleteObject(ref(storage, row.pdfStoragePath));
+      } catch {
+        /* Datei evtl. schon entfernt */
+      }
+    }
+    await persist({ ...data, eingangsrechnungen: (data.eingangsrechnungen ?? []).filter(x => x.id !== id) });
+  };
 
   // ── Import / Export ───────────────────────────────────────────────────────
   const exportData = () => data;

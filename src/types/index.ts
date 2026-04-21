@@ -180,6 +180,10 @@ export interface Eingangsrechnung {
   faelligAm: string;
   notizen: string;
   erstelltAm: string;
+  /** Öffentliche Download-URL der Original-PDF in Firebase Storage */
+  pdfUrl?: string;
+  /** Pfad in Storage (z. B. fibu/{uid}/{id}.pdf) — zum Löschen */
+  pdfStoragePath?: string;
 }
 
 export interface AppData {
