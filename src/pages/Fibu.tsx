@@ -105,12 +105,22 @@ export default function Fibu() {
   const [draftId, setDraftId] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [extractError, setExtractError] = useState('');
+  const [saveError, setSaveError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { register, handleSubmit, reset } = useForm<FormData>({ defaultValues: emptyForm });
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<FormData>({
+    defaultValues: emptyForm,
+    mode: 'onSubmit',
+  });
 
   useEffect(() => {
     if (!modalOpen) return;
+    setSaveError('');
     if (edit) {
       reset({
         lieferant: edit.lieferant,
@@ -125,7 +135,7 @@ export default function Fibu() {
     } else {
       reset(emptyForm);
       setPdfFile(null);
-      setDraftId(null);
+      setDraftId(uuidv4());
       setExtractError('');
     }
   }, [modalOpen, edit, reset]);
@@ -156,8 +166,7 @@ export default function Fibu() {
       return;
     }
     setPdfFile(file);
-    const id = draftId ?? uuidv4();
-    setDraftId(id);
+    setDraftId(prev => prev ?? uuidv4());
 
     setAnalyzing(true);
     try {
@@ -200,47 +209,68 @@ export default function Fibu() {
     setPdfFile(null);
     setDraftId(null);
     setExtractError('');
+    setSaveError('');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const onSave = async (form: FormData) => {
-    if (!user) return;
+    if (!user) {
+      setSaveError('Bitte melde dich an.');
+      return;
+    }
 
-    let pdfUrl: string | undefined;
-    let pdfStoragePath: string | undefined;
-    const targetId = edit?.id ?? draftId ?? (pdfFile ? uuidv4() : undefined);
+    const targetId = edit?.id ?? draftId;
+    if (!targetId) {
+      setSaveError('Interner Fehler: keine Eintrags-ID. Bitte Dialog schließen und erneut öffnen.');
+      return;
+    }
 
-    if (pdfFile && targetId) {
-      pdfStoragePath = `fibu/${user.uid}/${targetId}/rechnung.pdf`;
-      if (edit?.pdfStoragePath && edit.pdfStoragePath !== pdfStoragePath) {
-        try {
-          await deleteObject(ref(storage, edit.pdfStoragePath));
-        } catch {
-          /* ersetzt oder fehlt */
+    setSaveError('');
+    let pdfUrl: string | undefined = edit?.pdfUrl;
+    let pdfStoragePath: string | undefined = edit?.pdfStoragePath;
+
+    try {
+      if (pdfFile) {
+        const path = `fibu/${user.uid}/${targetId}/rechnung.pdf`;
+        if (edit?.pdfStoragePath && edit.pdfStoragePath !== path) {
+          try {
+            await deleteObject(ref(storage, edit.pdfStoragePath));
+          } catch {
+            /* alt fehlt */
+          }
         }
+        const storageRef = ref(storage, path);
+        await uploadBytes(storageRef, pdfFile, { contentType: 'application/pdf' });
+        pdfUrl = await getDownloadURL(storageRef);
+        pdfStoragePath = path;
       }
-      const storageRef = ref(storage, pdfStoragePath);
-      await uploadBytes(storageRef, pdfFile, { contentType: 'application/pdf' });
-      pdfUrl = await getDownloadURL(storageRef);
-    }
 
-    if (edit) {
-      await updateEingangsrechnung({
-        ...edit,
-        ...form,
-        ...(pdfUrl ? { pdfUrl, pdfStoragePath } : {}),
-      });
-    } else if (targetId && (pdfUrl || !pdfFile)) {
-      await addEingangsrechnung({
-        ...form,
-        id: pdfFile || draftId ? targetId : undefined,
-        ...(pdfUrl && pdfStoragePath ? { pdfUrl, pdfStoragePath } : {}),
-      });
-    } else {
-      await addEingangsrechnung(form);
-    }
+      if (edit) {
+        await updateEingangsrechnung({
+          ...edit,
+          ...form,
+          pdfUrl,
+          pdfStoragePath,
+        });
+      } else {
+        await addEingangsrechnung({
+          ...form,
+          id: targetId,
+          pdfUrl,
+          pdfStoragePath,
+        });
+      }
 
-    closeModal();
+      closeModal();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const code = (e as { code?: string })?.code;
+      setSaveError(
+        code === 'storage/unauthorized'
+          ? 'Speichern fehlgeschlagen: Keine Berechtigung für Firebase Storage. Bitte Storage-Regeln deployen (fibu/…) und neu anmelden.'
+          : `Speichern fehlgeschlagen: ${msg}`,
+      );
+    }
   };
 
   const totalAll = (data.eingangsrechnungen ?? []).reduce((s, r) => s + r.betragBrutto, 0);
@@ -441,13 +471,21 @@ export default function Fibu() {
             {extractError && <p className="text-xs text-red-400">{extractError}</p>}
           </div>
 
+          {saveError && (
+            <div className="rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-300 break-words">
+              {saveError}
+            </div>
+          )}
+
           <div>
             <label className="block text-xs font-medium text-gray-400 mb-1">Lieferant / Gläubiger *</label>
-            <input {...register('lieferant', { required: true })} className={inputCls} placeholder="z. B. Strom GmbH" />
+            <input {...register('lieferant', { required: 'Lieferant ist erforderlich' })} className={inputCls} placeholder="z. B. Strom GmbH" />
+            {errors.lieferant && <p className="text-xs text-red-400 mt-1">{errors.lieferant.message}</p>}
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-400 mb-1">Rechnungsnummer *</label>
-            <input {...register('rechnungsnummer', { required: true })} className={inputCls} />
+            <input {...register('rechnungsnummer', { required: 'Rechnungsnummer ist erforderlich' })} className={inputCls} />
+            {errors.rechnungsnummer && <p className="text-xs text-red-400 mt-1">{errors.rechnungsnummer.message}</p>}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -456,13 +494,19 @@ export default function Fibu() {
                 type="number"
                 step="0.01"
                 min="0"
-                {...register('betragBrutto', { required: true, valueAsNumber: true })}
+                {...register('betragBrutto', {
+                  required: 'Betrag ist erforderlich',
+                  valueAsNumber: true,
+                  validate: v => !Number.isNaN(v) && v >= 0 || 'Ungültiger Betrag',
+                })}
                 className={inputCls}
               />
+              {errors.betragBrutto && <p className="text-xs text-red-400 mt-1">{errors.betragBrutto.message}</p>}
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-400 mb-1">Fällig am *</label>
-              <input type="date" {...register('faelligAm', { required: true })} className={inputCls} />
+              <input type="date" {...register('faelligAm', { required: 'Datum ist erforderlich' })} className={inputCls} />
+              {errors.faelligAm && <p className="text-xs text-red-400 mt-1">{errors.faelligAm.message}</p>}
             </div>
           </div>
           <div>
