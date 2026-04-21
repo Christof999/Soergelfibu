@@ -29,7 +29,9 @@ export default function Dashboard() {
   const ausgaben = eingangsrechnungen.reduce((sum, e) => sum + (Number(e.betragBrutto) || 0), 0);
   const gewinn = umsatz - ausgaben;
   const steuerPct = Math.min(100, Math.max(0, Number(firma.dashboardSteuerSchaetzungProzent) || 0));
-  const gewinnNachSteuer = gewinn * (1 - steuerPct / 100);
+  /** Nur bei positivem Gewinn: vereinfachte Steuer; bei Verlust 0 € (kein „Steuerrabatt“ auf den Verlust). */
+  const geschaetzteSteuerAufGewinn = gewinn > 0 ? gewinn * (steuerPct / 100) : 0;
+  const gewinnNachSteuer = gewinn > 0 ? gewinn - geschaetzteSteuerAufGewinn : gewinn;
   const offen = offeneRechnungen.reduce((sum, d) => sum + berechneGesamtsummen(d.positionen).brutto, 0);
 
   const recentDocs = [...dokumente]
@@ -98,13 +100,26 @@ export default function Dashboard() {
               <Landmark size={20} className="text-violet-400" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm text-gray-500">Gewinn nach geschätzter Steuer ({steuerPct.toLocaleString('de-DE')}%)</p>
+              <p className="text-sm text-gray-500">
+                Gewinn nach geschätzter Steuer
+                {gewinn > 0 && ` (${steuerPct.toLocaleString('de-DE')} % vom Gewinn)`}
+              </p>
               <p className={`text-xl font-bold tabular-nums ${gewinnNachSteuer >= 0 ? 'text-gray-100' : 'text-rose-300'}`}>
                 {fmtEur(gewinnNachSteuer)}
               </p>
               <p className="text-xs text-gray-600 mt-1">
-                Vereinfacht: Gewinn × (1 − Steuersatz). Anpassbar unter{' '}
-                <Link to="/einstellungen" className="text-primary-400 hover:underline">Einstellungen</Link>.
+                {gewinn > 0 ? (
+                  <>
+                    Vereinfacht: geschätzte Steuer = Gewinn × Steuersatz, dann abziehen. Anpassbar unter{' '}
+                    <Link to="/einstellungen" className="text-primary-400 hover:underline">Einstellungen</Link>.
+                  </>
+                ) : (
+                  <>
+                    Bei Verlust wird hier <span className="text-gray-500">keine</span> Einkommensteuer auf diesen Betrag
+                    angesetzt (0 €); der Wert entspricht dem Verlust. Steuererstattung oder Verlustvortrag sind in
+                    Realität komplexer — keine Steuerberatung.
+                  </>
+                )}
               </p>
             </div>
           </div>
