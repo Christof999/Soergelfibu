@@ -6,6 +6,11 @@ export interface EmailVars {
   websiteUrl: string;
   /** Exakt 3 Punkte: Überschrift + Kunden-Empfehlung (für E-Mail-Template) */
   optimierungen: [OptimierungPunkt, OptimierungPunkt, OptimierungPunkt];
+  /**
+   * Wenn die Website nicht erreichbar war: ein zusammenhängender Ansprache-Text statt der drei Punkte.
+   * Wenn gesetzt (nicht leer), wird dieser Block statt der nummerierten Empfehlungen gerendert.
+   */
+  akquiseOhneWebsiteText?: string;
   /** Kurzvorstellung (Christof) — nach den drei Punkten, vor dem Call-to-Action */
   vorstellung?: string;
   preheader?: string;
@@ -41,6 +46,17 @@ function esc(s: string): string {
   );
 }
 
+/** Fließtext mit Absätzen (nach esc) als HTML-Absätze */
+function paragraphsFromEsc(escapedPlain: string): string {
+  const parts = escapedPlain.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
+  if (parts.length === 0) return '';
+  const pStyle =
+    'font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Helvetica,Arial,sans-serif;font-size:15px;line-height:1.65;color:#3A3A3A;margin:0 0 16px 0;';
+  return parts
+    .map(p => `<p style="${pStyle}">${p.replace(/\n/g, '<br/>')}</p>`)
+    .join('');
+}
+
 function opt(idx: number, title: string, body: string): string {
   return `
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="padding-bottom:56px;">
@@ -59,6 +75,9 @@ function opt(idx: number, title: string, body: string): string {
 }
 
 export function buildEmailHtml(vars: EmailVars): string {
+  const flussRaw = (vars.akquiseOhneWebsiteText ?? '').trim();
+  const useFluss = flussRaw.length > 0;
+
   const opts =
     vars.optimierungen?.length === 3 ? vars.optimierungen : FALLBACK_OPT;
 
@@ -68,9 +87,28 @@ export function buildEmailHtml(vars: EmailVars): string {
   })) as [{ title: string; body: string }, { title: string; body: string }, { title: string; body: string }];
 
   const preheader = vars.preheader
-    ?? `Drei konkrete Punkte zu ${vars.websiteUrl} — Kontakt über soergel-design.de/kontakt.`;
+    ?? (useFluss
+      ? `Leistungen rund um Web, WebApps, Media & Druck — Kontakt über soergel-design.de/kontakt.`
+      : `Drei konkrete Punkte zu ${vars.websiteUrl} — Kontakt über soergel-design.de/kontakt.`);
 
   const vorstellung = (vars.vorstellung ?? DEFAULT_EMAIL_VORSTELLUNG).trim();
+
+  const findingsBlock = useFluss
+    ? `
+        <tr>
+          <td style="background:#FFFFFF;padding:40px 48px 16px 48px;" class="px">
+            <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:0.18em;color:#8A8178;text-transform:uppercase;padding-bottom:14px;">Persönliche Ansprache</div>
+            ${paragraphsFromEsc(esc(flussRaw))}
+          </td>
+        </tr>`
+    : `
+        <tr>
+          <td style="background:#FFFFFF;padding:40px 48px 16px 48px;" class="px">
+            ${opt(1, parsed[0].title, parsed[0].body)}
+            ${opt(2, parsed[1].title, parsed[1].body)}
+            ${opt(3, parsed[2].title, parsed[2].body)}
+          </td>
+        </tr>`;
 
   return `<!DOCTYPE html>
 <html lang="de">
@@ -130,13 +168,17 @@ export function buildEmailHtml(vars: EmailVars): string {
               </tr>
               <tr>
                 <td class="h1" style="font-family:Georgia,'Times New Roman',serif;font-size:38px;line-height:1.1;color:#0A0A0A;font-weight:400;letter-spacing:-0.01em;padding-bottom:20px;">
-                  Ihre Website <span style="color:#8A8178;">verschenkt</span><br>gerade Kunden.
+                  ${useFluss
+                    ? `So können wir <span style="color:#8A8178;">${esc(vars.companyName)}</span><br>digital unterstützen.`
+                    : `Ihre Website <span style="color:#8A8178;">verschenkt</span><br>gerade Kunden.`}
                 </td>
               </tr>
               <tr>
                 <td style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:16px;line-height:1.55;color:#3A3A3A;padding-bottom:28px;">
                   Hallo ${esc(vars.customerName)},<br><br>
-                  ich habe mir <a href="https://${esc(vars.websiteUrl)}" style="color:#0A0A0A;text-decoration:underline;text-decoration-color:#C94A1C;text-underline-offset:3px;">${esc(vars.websiteUrl)}</a> angesehen. Drei Punkte kosten Sie messbar Anfragen — lassen sich in wenigen Wochen lösen.
+                  ${useFluss
+                    ? `ich wollte mir <a href="https://${esc(vars.websiteUrl)}" style="color:#0A0A0A;text-decoration:underline;text-decoration-color:#C94A1C;text-underline-offset:3px;">${esc(vars.websiteUrl)}</a> ansehen — der Abruf ist technisch gerade nicht gelungen (z.&nbsp;B. Bot-Schutz, Wartung oder Timeout). Darum schreibe ich Ihnen kurz direkt, woran ich mit SØRGEL-design arbeite und wie das zu Ihrem Betrieb passen kann:`
+                    : `ich habe mir <a href="https://${esc(vars.websiteUrl)}" style="color:#0A0A0A;text-decoration:underline;text-decoration-color:#C94A1C;text-underline-offset:3px;">${esc(vars.websiteUrl)}</a> angesehen. Drei Punkte kosten Sie messbar Anfragen — lassen sich in wenigen Wochen lösen.`}
                 </td>
               </tr>
             </table>
@@ -150,14 +192,8 @@ export function buildEmailHtml(vars: EmailVars): string {
           </td>
         </tr>
 
-        <!-- 3 Findings -->
-        <tr>
-          <td style="background:#FFFFFF;padding:40px 48px 16px 48px;" class="px">
-            ${opt(1, parsed[0].title, parsed[0].body)}
-            ${opt(2, parsed[1].title, parsed[1].body)}
-            ${opt(3, parsed[2].title, parsed[2].body)}
-          </td>
-        </tr>
+        <!-- 3 Findings oder Fließtext (Website nicht erreichbar) -->
+        ${findingsBlock}
 
         <!-- Kurzvorstellung -->
         <tr>
@@ -181,7 +217,7 @@ export function buildEmailHtml(vars: EmailVars): string {
                 <td style="padding:28px 32px;">
                   <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:0.22em;color:#C94A1C;text-transform:uppercase;padding-bottom:10px;">Nächster Schritt</div>
                   <div style="font-family:Georgia,'Times New Roman',serif;font-size:22px;line-height:1.3;color:#FFFFFF;font-weight:400;padding-bottom:18px;">
-                    Schreiben Sie mir gern über das <span style="color:#BFB8AE;">Kontaktformular</span> — dann besprechen wir die drei Punkte und ich übernehme die Umsetzung gerne im Auftrag für Sie.
+                    Schreiben Sie mir gern über das <span style="color:#BFB8AE;">Kontaktformular</span> — dann besprechen wir gemeinsam das weitere Vorgehen und ich übernehme die Umsetzung gerne im Auftrag für Sie.
                   </div>
                   <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                     <tr>
@@ -237,8 +273,37 @@ export function buildSubject(lead: { name: string; website: string }): string {
   return `Kurzanalyse ${domain || lead.name} — 3 konkrete Punkte`;
 }
 
+/** Betreff wenn die Website nicht geladen werden konnte (Fließtext-Ansprache) */
+export function buildSubjectOhneWebsiteErreichbar(lead: { name: string; website: string }): string {
+  const domain = lead.website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0];
+  return `Kurze Vorstellung — Web, WebApps, Media & Druck für ${domain || lead.name}`;
+}
+
 export function buildPlainText(vars: EmailVars): string {
   const vorstellung = (vars.vorstellung ?? DEFAULT_EMAIL_VORSTELLUNG).trim();
+  const fluss = (vars.akquiseOhneWebsiteText ?? '').trim();
+  const useFluss = fluss.length > 0;
+
+  if (useFluss) {
+    return `Hallo ${vars.customerName},
+
+ich wollte mir ${vars.websiteUrl} ansehen — der Abruf ist technisch gerade nicht gelungen (z. B. Bot-Schutz, Wartung oder Timeout).
+
+${fluss}
+
+${vorstellung}
+
+Nächster Schritt: Schreiben Sie mir gern über das Kontaktformular — dann besprechen wir Ihr Anliegen und ich übernehme die Umsetzung gerne im Auftrag für Sie.
+${DEFAULT_AKQUISE_KONTAKT_URL}
+
+Viele Grüße
+Christof Sörgel
+SØRGEL-design · www.soergel-design.de
+
+---
+Sie erhalten diese Mail einmalig. Nicht mehr kontaktieren: hallo@soergel-design.de`;
+  }
+
   const opts = vars.optimierungen?.length === 3 ? vars.optimierungen : FALLBACK_OPT;
   const lines = opts.map((p, i) => {
     const t = p.titel?.trim() || `Punkt ${i + 1}`;

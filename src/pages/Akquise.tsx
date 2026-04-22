@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   Search, Star, Globe, Phone, Mail, MapPin, Loader2,
   Sparkles, ChevronDown, ChevronUp, ExternalLink, Trash2,
-  TrendingUp, Users,
+  TrendingUp, Users, Send,
 } from 'lucide-react';
 import EmailModal from '../components/EmailModal';
 import PageHeader from '../components/PageHeader';
@@ -72,6 +72,15 @@ function LeadKarte({
                 </p>
               )}
               {lead.email && <p className="flex items-center gap-1.5"><Mail size={10} /><a href={`mailto:${lead.email}`} className="hover:text-primary-400">{lead.email}</a></p>}
+              {lead.akquiseEmailZuletztVersendetAm && (
+                <p className="flex items-center gap-1.5 text-emerald-400/90 mt-1">
+                  <Send size={10} className="shrink-0" />
+                  <span>
+                    Akquise-E-Mail zuletzt:{' '}
+                    {format(new Date(lead.akquiseEmailZuletztVersendetAm), 'dd.MM.yyyy HH:mm', { locale: de })}
+                  </span>
+                </p>
+              )}
               {lead.bewertung > 0 && <div className="mt-1"><Sterne n={lead.bewertung} /> <span className="text-gray-600 text-xs">({lead.bewertungsAnzahl})</span></div>}
             </div>
           </div>
@@ -229,6 +238,19 @@ export default function Akquise() {
     const updated = { ...lead, stern: false };
     await upsertLead(updated); // Stern entfernen aber behalten oder
     await deleteLead(lead.id); // direkt löschen
+  };
+
+  const handleAkquiseEmailGesendet = async (leadId: string, versendetAmIso: string) => {
+    const inFirestore = (data.leads ?? []).find(l => l.id === leadId);
+    if (inFirestore) {
+      await upsertLead({ ...inFirestore, akquiseEmailZuletztVersendetAm: versendetAmIso });
+    }
+    setSuchergebnisse(prev =>
+      prev.map(l => (l.id === leadId ? { ...l, akquiseEmailZuletztVersendetAm: versendetAmIso } : l))
+    );
+    setEmailLead(prev =>
+      prev && prev.id === leadId ? { ...prev, akquiseEmailZuletztVersendetAm: versendetAmIso } : prev
+    );
   };
 
   const analysieren = async (lead: Lead, isFromPotentiell = false) => {
@@ -397,7 +419,10 @@ export default function Akquise() {
                       />
                       {/* E-Mail-Button */}
                       <button
-                        onClick={() => setEmailLead(lead)}
+                        onClick={() => {
+                          const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
+                          setEmailLead(live);
+                        }}
                         className="flex items-center justify-center gap-2 px-4 py-2 w-full text-sm font-medium bg-dark-800 border border-dark-700 text-gray-300 rounded-xl hover:bg-dark-700 hover:text-gray-100 transition-colors"
                       >
                         <Mail size={14} /> E-Mail erstellen
@@ -411,7 +436,11 @@ export default function Akquise() {
       </div>
 
       {emailLead && (
-        <EmailModal lead={emailLead} onClose={() => setEmailLead(null)} />
+        <EmailModal
+          lead={emailLead}
+          onClose={() => setEmailLead(null)}
+          onEmailSent={handleAkquiseEmailGesendet}
+        />
       )}
     </div>
   );

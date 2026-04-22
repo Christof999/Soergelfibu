@@ -155,6 +155,13 @@ export interface LeadAnalyse {
   ansprechpartner: string;
   zusammenfassung: string;
   websiteGeladen: boolean;
+  /** true = URL war angegeben und Inhalt wurde geladen; false = URL da, aber nicht ladbar */
+  websiteErreichbar?: boolean;
+  /**
+   * Wenn die Website nicht automatisch geladen werden konnte: ein Fließtext für die Ansprache
+   * (ohne nummerierte Punkte), Fokus Leistungen — WebApps, Media, Druck. Leer bei normaler Analyse.
+   */
+  akquiseOhneWebsiteText?: string;
   analysiertAm: string;
 }
 
@@ -172,6 +179,8 @@ export interface Lead {
   analyse: LeadAnalyse | null;
   stern: boolean;
   erstelltAm: string;
+  /** ISO-Zeitpunkt, wenn die Akquise-E-Mail zuletzt erfolgreich versendet (oder manuell) markiert wurde */
+  akquiseEmailZuletztVersendetAm?: string;
 }
 
 /** Eingehende Rechnung (Zahlungsverpflichtung) für Fibu / Steuer */

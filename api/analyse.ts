@@ -86,8 +86,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const hatInhalt = hauptseite.length > 50 || impressum.length > 50;
+  const websiteErreichbar = !hatWebsite || hatInhalt;
 
-  const prompt = `Du bist ein Experte für digitales Marketing und Webdesign. Analysiere folgendes Unternehmen.
+  const promptMitWebsite = `Du bist ein Experte für digitales Marketing und Webdesign. Analysiere folgendes Unternehmen.
 
 Unternehmen: ${name}
 Branche: ${branche ?? 'Unbekannt'}
@@ -103,9 +104,8 @@ WICHTIGE REGELN – halte dich STRIKT daran:
 1. Erfinde KEINE Fakten. Wenn etwas nicht aus dem Seiteninhalt hervorgeht, schreib es NICHT.
 2. Ansprechpartner: Nur angeben wenn ein konkreter Name im Impressum steht. Sonst leerer String "".
 3. Responsivität/Design: Beurteile NUR was aus dem Text erkennbar ist. Mache KEINE Annahmen über das visuelle Design.
-4. Wenn die Website nicht geladen werden konnte, analysiere nur anhand des Unternehmensnamens und der Branche.
-5. Drei konkrete HANDLUNGSEMPFEHLUNGEN für den Webseiten-Betreiber. Sie sollen sich so anhören, als würdest du sie 1:1 in einer Akquise-E-Mail an den Kunden schreiben (Auftrag: spätere Umsetzung durch dich).
-6. Jeder Punkt hat eine kurze ÜBERSCHRIFT (wie im E-Mail-Template über dem Absatz) und einen EMPFEHLUNGSTEXT:
+4. Drei konkrete HANDLUNGSEMPFEHLUNGEN für den Webseiten-Betreiber. Sie sollen sich so anhören, als würdest du sie 1:1 in einer Akquise-E-Mail an den Kunden schreiben (Auftrag: spätere Umsetzung durch dich).
+5. Jeder Punkt hat eine kurze ÜBERSCHRIFT (wie im E-Mail-Template über dem Absatz) und einen EMPFEHLUNGSTEXT:
    - titel: prägnant (max. ca. 80 Zeichen), beschreibt das Thema, keine vollständigen Sätze nötig.
    - empfehlung: 1–2 Sätze, direkte „Sie“-Anrede an den Kunden, sachlich, konkret, umsetzbar; keine Meta-Sätze wie „Sie sollten überlegen…“.
 
@@ -117,11 +117,33 @@ Antworte ausschließlich als JSON (kein Markdown, kein Text drumherum):
     { "titel": "Kurze Überschrift für Punkt 3", "empfehlung": "…" }
   ],
   "ansprechpartner": "Vollständiger Name aus dem Impressum oder leerer String",
-  "zusammenfassung": "Was macht das Unternehmen und warum ist es als Lead interessant? (1-2 Sätze, nur belegte Fakten)",
-  "websiteGeladen": ${hatInhalt}
+  "zusammenfassung": "Was macht das Unternehmen und warum ist es als Lead interessant? (1-2 Sätze, nur belegte Fakten)"
 }`;
 
-  try {
+  const promptOhneWebsiteInhalt = `Du schreibst eine kurze, persönliche Akquise-E-Mail (nur der Hauptteil MITTEN, ohne Anrede und ohne Grußformel).
+
+Kontext:
+- Die Website des Unternehmens konnte technisch nicht abgerufen werden (Timeout, Bot-Schutz, Wartung o.ä.). Du hast KEIN Seiten-HTML.
+- Unternehmen: ${name}
+- Branche: ${branche ?? 'nicht näher bekannt'}
+- Geplante Domain/URL (nur zur Einordnung, nicht behaupten du hättest die Seite gesehen): ${website || '—'}
+
+Deine Aufgabe:
+Schreibe EINEN zusammenhängenden Fließtext auf Deutsch (ca. 180–280 Wörter), durchgehend in der „Sie“-Form.
+- KEINE nummerierte Liste, KEINE „Punkt 1/2/3“, KEINE Bullet-Points — nur fließende Absätze (im JSON als ein String mit \\n\\n zwischen Absätzen).
+- Hole den Leser wertschätzend ab: digitale Sichtbarkeit, Abläufe, Vertrauen, Zeitgewinn.
+- Geh konkret auf DEINE Leistungen ein: professionelle Websites, individuelle WebApps und interne Tools (Prozesse, Daten, Schnittstellen), dazu Media (Foto/Video, Social, Content) und Print (Geschäftsausstattung, Flyer, Großformat).
+- Keine erfundenen Fakten über das Unternehmen; allgemein formuliert, aber warm und konkret.
+- Kein Preisversprechen, keine Garantien, kein Rechts- oder Steuerrat.
+
+Antworte ausschließlich als JSON (kein Markdown, kein Text drumherum):
+{
+  "akquiseOhneWebsiteText": "Absatz eins...\\n\\nAbsatz zwei...",
+  "ansprechpartner": "",
+  "zusammenfassung": "Ein Satz: Website technisch nicht geladen; Ansprache über Leistungsportfolio."
+}`;
+
+  async function callGeminiJson(prompt: string): Promise<string> {
     const geminiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
       {
@@ -130,27 +152,29 @@ Antworte ausschließlich als JSON (kein Markdown, kein Text drumherum):
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
-            temperature: 0.2,
+            temperature: hatInhalt ? 0.2 : 0.45,
             maxOutputTokens: 2048,
             responseMimeType: 'application/json',
           },
         }),
       }
     );
-
     const geminiData = await geminiRes.json();
-
     if (!geminiRes.ok) {
       const errMsg = geminiData?.error?.message ?? JSON.stringify(geminiData);
-      return res.status(500).json({ error: `Gemini API Fehler: ${errMsg}` });
+      throw new Error(`Gemini API Fehler: ${errMsg}`);
     }
+    return geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}';
+  }
 
-    const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}';
+  try {
+    const rawText = await callGeminiJson(hatInhalt ? promptMitWebsite : promptOhneWebsiteInhalt);
 
     type OptEntry = { titel?: string; empfehlung?: string } | string;
 
     let parsed: {
-      optimierungen: OptEntry[];
+      optimierungen?: OptEntry[];
+      akquiseOhneWebsiteText?: string;
       ansprechpartner: string;
       zusammenfassung: string;
       websiteGeladen?: boolean;
@@ -165,6 +189,19 @@ Antworte ausschließlich als JSON (kein Markdown, kein Text drumherum):
         zusammenfassung: rawText.slice(0, 200),
         websiteGeladen: false,
       };
+    }
+
+    if (!hatInhalt) {
+      const akquiseOhneWebsiteText = String(parsed.akquiseOhneWebsiteText ?? '').trim();
+      return res.status(200).json({
+        optimierungen: [],
+        akquiseOhneWebsiteText: akquiseOhneWebsiteText || 'Ich unterstütze Betriebe wie Ihren mit Websites, maßgeschneiderten WebApps, Media und Print — gern sprechen wir kurz über Ihre nächsten Schritte.',
+        ansprechpartner: parsed.ansprechpartner ?? '',
+        zusammenfassung: parsed.zusammenfassung ?? 'Website konnte nicht automatisch geladen werden; Ansprache über Leistungsportfolio.',
+        websiteGeladen: false,
+        websiteErreichbar: false,
+        analysiertAm: new Date().toISOString(),
+      });
     }
 
     const rawOpts = parsed.optimierungen?.slice(0, 3) ?? [];
@@ -182,7 +219,8 @@ Antworte ausschließlich als JSON (kein Markdown, kein Text drumherum):
       optimierungen,
       ansprechpartner: parsed.ansprechpartner ?? '',
       zusammenfassung: parsed.zusammenfassung ?? '',
-      websiteGeladen: hatInhalt,
+      websiteGeladen: true,
+      websiteErreichbar: true,
       analysiertAm: new Date().toISOString(),
     });
   } catch (err) {
