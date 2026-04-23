@@ -1,11 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Copy, Download, Send, RefreshCw, ExternalLink } from 'lucide-react';
 import { Lead } from '../types';
-import { buildEmailHtml, buildSubject, buildPlainText, EmailVars } from '../utils/emailTemplate';
+import {
+  buildEmailHtml,
+  buildPlainText,
+  EmailVars,
+  buildInitialEmailVars,
+  DEFAULT_STANDARD_AKQUISE_LEISTUNGSTEXT,
+  type AkquiseEmailTemplateKind,
+} from '../utils/emailTemplate';
 import { useApp } from '../context/AppContext';
 
 interface Props {
   lead: Lead;
+  /** „analyse“ = drei KI-Punkte; „standard“ = Leistungs-Ansprache ohne KI */
+  emailMode: AkquiseEmailTemplateKind;
   onClose: () => void;
 }
 
@@ -17,31 +26,19 @@ function toast(msg: string) {
   setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 350); }, 2000);
 }
 
-export default function EmailModal({ lead, onClose }: Props) {
+export default function EmailModal({ lead, emailMode, onClose }: Props) {
   const { data } = useApp();
   const firma = data.firma;
   const analyse = lead.analyse;
 
-  // Variablen — alle editierbar
-  const [vars, setVars] = useState<EmailVars>(() => {
-    const opt1 = analyse?.optimierungen[0] ?? '';
-    const opt2 = analyse?.optimierungen[1] ?? '';
-    const opt3 = analyse?.optimierungen[2] ?? '';
-    return {
-      customerName: analyse?.ansprechpartner || 'Guten Tag',
-      companyName: lead.name,
-      websiteUrl: lead.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''),
-      ctaUrl: firma.terminUrl || 'https://cal.com/',
-      optimierungen: [opt1, opt2, opt3] as [string, string, string],
-      subject: buildSubject(lead),
-    };
-  });
+  const [vars, setVars] = useState<EmailVars>(() =>
+    buildInitialEmailVars(lead, firma.terminUrl || '', emailMode)
+  );
 
   const [tab, setTab] = useState<'vorschau' | 'felder'>('felder');
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const html = buildEmailHtml(vars);
 
-  // iframe Höhe anpassen
   useEffect(() => {
     const iframe = iframeRef.current;
     if (!iframe) return;
@@ -55,7 +52,6 @@ export default function EmailModal({ lead, onClose }: Props) {
     iframe.onload = resize;
   }, [html]);
 
-  // Schließen mit Escape
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', h);
@@ -98,6 +94,7 @@ export default function EmailModal({ lead, onClose }: Props) {
   };
 
   const inputCls = 'w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none';
+  const isStandard = vars.templateKind === 'standard';
 
   return (
     <div className="fixed inset-0 z-50 flex bg-black/70 backdrop-blur-sm" onClick={onClose}>
@@ -105,18 +102,20 @@ export default function EmailModal({ lead, onClose }: Props) {
         className="m-auto w-full max-w-6xl max-h-[95vh] bg-dark-800 border border-dark-700 rounded-2xl flex flex-col overflow-hidden shadow-2xl"
         onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-dark-700 shrink-0">
           <div>
             <h2 className="text-base font-semibold text-gray-100">E-Mail erstellen</h2>
-            <p className="text-xs text-gray-500 mt-0.5">{lead.name} · {lead.website}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{lead.name} · {lead.website || '—'}</p>
+            <p className="text-xs text-primary-400/90 mt-1">
+              {isStandard ? 'Vorlage: Standard-Ansprache (ohne KI)' : 'Vorlage: Kurzanalyse (3 Punkte)'}
+            </p>
           </div>
           <div className="flex items-center gap-2">
-            {/* Tab-Switcher */}
             <div className="flex bg-dark-900 rounded-lg p-0.5 border border-dark-700">
               {(['felder', 'vorschau'] as const).map(t => (
                 <button
                   key={t}
+                  type="button"
                   onClick={() => setTab(t)}
                   className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
                     tab === t ? 'bg-dark-700 text-gray-200' : 'text-gray-500 hover:text-gray-300'
@@ -126,16 +125,14 @@ export default function EmailModal({ lead, onClose }: Props) {
                 </button>
               ))}
             </div>
-            <button onClick={onClose} className="p-1.5 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-dark-700 transition-colors">
+            <button type="button" onClick={onClose} className="p-1.5 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-dark-700 transition-colors">
               <X size={18} />
             </button>
           </div>
         </div>
 
-        {/* Body */}
         <div className="flex flex-1 min-h-0 overflow-hidden">
 
-          {/* Linke Seite: Felder (immer sichtbar auf Desktop, bei Mobile per Tab) */}
           <div className={`w-80 shrink-0 border-r border-dark-700 flex flex-col overflow-y-auto ${tab === 'vorschau' ? 'hidden lg:flex' : 'flex'}`}>
             <div className="p-5 space-y-4 flex-1">
               <p className="text-xs text-gray-500 uppercase tracking-wider">Empfänger</p>
@@ -160,39 +157,60 @@ export default function EmailModal({ lead, onClose }: Props) {
                   <input className={inputCls} value={vars.subject} onChange={e => set('subject', e.target.value)} />
                 </div>
                 <div className="space-y-1 mt-3">
-                  <label className="block text-xs text-gray-500">Termin-Link (CTA)</label>
-                  <input className={inputCls} value={vars.ctaUrl} onChange={e => set('ctaUrl', e.target.value)} placeholder="https://cal.com/..." />
+                  <label className="block text-xs text-gray-500">
+                    {isStandard ? 'Link im Button (Kontakt)' : 'Termin-Link (CTA)'}
+                  </label>
+                  <input className={inputCls} value={vars.ctaUrl} onChange={e => set('ctaUrl', e.target.value)} placeholder="https://…" />
                 </div>
               </div>
 
-              <div className="border-t border-dark-700 pt-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-gray-500 uppercase tracking-wider">3 Optimierungen</p>
-                  {analyse && (
-                    <span className="text-xs text-emerald-400 flex items-center gap-1">
-                      <RefreshCw size={10} /> KI
-                    </span>
-                  )}
+              {isStandard ? (
+                <div className="border-t border-dark-700 pt-4 space-y-2">
+                  <p className="text-xs text-gray-500 uppercase tracking-wider">Haupttext</p>
+                  <p className="text-[11px] text-gray-600 leading-relaxed">
+                    Fließtext zu Leistungen und Zusammenarbeit — Absätze mit Leerzeile trennen. Keine KI nötig.
+                  </p>
+                  <textarea
+                    rows={14}
+                    className={inputCls}
+                    value={vars.standardLeistungstext ?? ''}
+                    onChange={e => set('standardLeistungstext', e.target.value)}
+                    placeholder={DEFAULT_STANDARD_AKQUISE_LEISTUNGSTEXT}
+                  />
                 </div>
-                {([0, 1, 2] as const).map(idx => (
-                  <div key={idx} className="space-y-1">
-                    <label className="block text-xs text-gray-500">Punkt {idx + 1}</label>
-                    <textarea
-                      rows={3}
-                      className={inputCls}
-                      value={vars.optimierungen[idx]}
-                      onChange={e => setOpt(idx, e.target.value)}
-                      placeholder={`Optimierung ${idx + 1}…`}
-                    />
+              ) : (
+                <div className="border-t border-dark-700 pt-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-gray-500 uppercase tracking-wider">3 Optimierungen</p>
+                    {analyse && (
+                      <span className="text-xs text-emerald-400 flex items-center gap-1">
+                        <RefreshCw size={10} /> KI
+                      </span>
+                    )}
                   </div>
-                ))}
-              </div>
+                  {([0, 1, 2] as const).map(idx => (
+                    <div key={idx} className="space-y-1">
+                      <label className="block text-xs text-gray-500">Punkt {idx + 1}</label>
+                      <textarea
+                        rows={3}
+                        className={inputCls}
+                        value={vars.optimierungen[idx]}
+                        onChange={e => setOpt(idx, e.target.value)}
+                        placeholder={`Optimierung ${idx + 1}…`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Aktionen */}
             <div className="p-4 border-t border-dark-700 space-y-2 shrink-0">
               {lead.email ? (
-                <button onClick={openMailto} className="w-full flex items-center justify-between px-4 py-2.5 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors">
+                <button
+                  type="button"
+                  onClick={openMailto}
+                  className="w-full flex items-center justify-between px-4 py-2.5 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
+                >
                   <span className="flex items-center gap-2"><Send size={14} /> In Mail-App öffnen</span>
                   <ExternalLink size={12} className="opacity-60" />
                 </button>
@@ -200,20 +218,19 @@ export default function EmailModal({ lead, onClose }: Props) {
                 <div className="text-xs text-gray-600 text-center py-1">Keine E-Mail-Adresse vorhanden</div>
               )}
               <div className="grid grid-cols-3 gap-1.5">
-                <button onClick={copyHtml} className="flex flex-col items-center gap-1 px-2 py-2 border border-dark-700 rounded-lg text-gray-400 hover:bg-dark-700 hover:text-gray-200 transition-colors">
+                <button type="button" onClick={copyHtml} className="flex flex-col items-center gap-1 px-2 py-2 border border-dark-700 rounded-lg text-gray-400 hover:bg-dark-700 hover:text-gray-200 transition-colors">
                   <Copy size={13} /><span className="text-xs">HTML</span>
                 </button>
-                <button onClick={copySubject} className="flex flex-col items-center gap-1 px-2 py-2 border border-dark-700 rounded-lg text-gray-400 hover:bg-dark-700 hover:text-gray-200 transition-colors">
+                <button type="button" onClick={copySubject} className="flex flex-col items-center gap-1 px-2 py-2 border border-dark-700 rounded-lg text-gray-400 hover:bg-dark-700 hover:text-gray-200 transition-colors">
                   <Copy size={13} /><span className="text-xs">Betreff</span>
                 </button>
-                <button onClick={download} className="flex flex-col items-center gap-1 px-2 py-2 border border-dark-700 rounded-lg text-gray-400 hover:bg-dark-700 hover:text-gray-200 transition-colors">
+                <button type="button" onClick={download} className="flex flex-col items-center gap-1 px-2 py-2 border border-dark-700 rounded-lg text-gray-400 hover:bg-dark-700 hover:text-gray-200 transition-colors">
                   <Download size={13} /><span className="text-xs">.html</span>
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Rechte Seite: iframe Vorschau */}
           <div className={`flex-1 overflow-auto bg-[#F5F3EF] ${tab === 'felder' ? 'hidden lg:block' : 'block'}`}>
             <iframe
               ref={iframeRef}
