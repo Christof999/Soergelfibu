@@ -2,12 +2,13 @@ import { useState } from 'react';
 import {
   Search, Star, Globe, Phone, Mail, MapPin, Loader2,
   Sparkles, ChevronDown, ChevronUp, ExternalLink, Trash2,
-  TrendingUp, Users,
+  TrendingUp, Users, FileText,
 } from 'lucide-react';
 import EmailModal from '../components/EmailModal';
 import PageHeader from '../components/PageHeader';
 import { useApp } from '../context/AppContext';
 import { Lead, LeadAnalyse } from '../types';
+import type { AkquiseEmailTemplateKind } from '../utils/emailTemplate';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -37,12 +38,16 @@ function LeadKarte({
   onAnalyse,
   onDelete,
   analysierend,
+  onEmailAnalyse,
+  onEmailStandard,
 }: {
   lead: Lead;
   onStern: () => void;
   onAnalyse: () => void;
   onDelete?: () => void;
   analysierend: boolean;
+  onEmailAnalyse?: () => void;
+  onEmailStandard?: () => void;
 }) {
   const [offen, setOffen] = useState(false);
 
@@ -96,27 +101,53 @@ function LeadKarte({
         </div>
 
         {/* Analyse-Bereich */}
-        <div className="mt-3 flex items-center gap-2">
-          {!lead.analyse ? (
-            <button
-              onClick={onAnalyse}
-              disabled={analysierend || !lead.website}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-primary-600/20 text-primary-300 border border-primary-700/50 rounded-lg hover:bg-primary-600/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              title={!lead.website ? 'Keine Website vorhanden' : ''}
-            >
-              {analysierend ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />}
-              {analysierend ? 'Analysiere…' : 'KI-Analyse'}
-            </button>
-          ) : (
-            <button
-              onClick={() => setOffen(v => !v)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-400 bg-emerald-900/20 border border-emerald-800/50 rounded-lg hover:bg-emerald-900/30 transition-colors"
-            >
-              <Sparkles size={11} />
-              Analyse anzeigen
-              {offen ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
-            </button>
-          )}
+        <div className="mt-3 flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {!lead.analyse ? (
+              <button
+                type="button"
+                onClick={onAnalyse}
+                disabled={analysierend || !lead.website}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-primary-600/20 text-primary-300 border border-primary-700/50 rounded-lg hover:bg-primary-600/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                title={!lead.website ? 'Keine Website vorhanden' : ''}
+              >
+                {analysierend ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />}
+                {analysierend ? 'Analysiere…' : 'KI-Analyse'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setOffen(v => !v)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-400 bg-emerald-900/20 border border-emerald-800/50 rounded-lg hover:bg-emerald-900/30 transition-colors"
+              >
+                <Sparkles size={11} />
+                Analyse anzeigen
+                {offen ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+              </button>
+            )}
+            {onEmailStandard && lead.email && (
+              <button
+                type="button"
+                onClick={onEmailStandard}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-dark-700 text-gray-300 border border-dark-600 rounded-lg hover:bg-dark-600 hover:text-gray-100 transition-colors"
+                title="Standard-E-Mail ohne KI (Leistungen & Branding)"
+              >
+                <FileText size={11} />
+                Standard-E-Mail
+              </button>
+            )}
+            {onEmailAnalyse && lead.email && lead.analyse && (
+              <button
+                type="button"
+                onClick={onEmailAnalyse}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-primary-700/30 text-primary-200 border border-primary-600/40 rounded-lg hover:bg-primary-700/45 transition-colors"
+                title="E-Mail mit den drei Analyse-Punkten"
+              >
+                <Mail size={11} />
+                E-Mail (Analyse)
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Analyse-Details */}
@@ -170,7 +201,7 @@ export default function Akquise() {
   const { data, upsertLead, deleteLead } = useApp();
 
   const [ansicht, setAnsicht] = useState<Ansicht>('suche');
-  const [emailLead, setEmailLead] = useState<Lead | null>(null);
+  const [emailModal, setEmailModal] = useState<{ lead: Lead; mode: AkquiseEmailTemplateKind } | null>(null);
   const [query, setQuery] = useState('');
   const [plz, setPlz] = useState('91732');
   const [radius, setRadius] = useState('50');
@@ -351,6 +382,8 @@ export default function Akquise() {
                       onStern={() => toggleStern(lead)}
                       onAnalyse={() => analysieren(lead)}
                       analysierend={!!analysierend[lead.id]}
+                      onEmailStandard={() => setEmailModal({ lead, mode: 'standard' })}
+                      onEmailAnalyse={() => setEmailModal({ lead, mode: 'analyse' })}
                     />
                   ))}
                 </div>
@@ -389,13 +422,24 @@ export default function Akquise() {
                         onDelete={() => deleteLead(lead.id)}
                         analysierend={!!analysierend[lead.id]}
                       />
-                      {/* E-Mail-Button */}
-                      <button
-                        onClick={() => setEmailLead(lead)}
-                        className="flex items-center justify-center gap-2 px-4 py-2 w-full text-sm font-medium bg-dark-800 border border-dark-700 text-gray-300 rounded-xl hover:bg-dark-700 hover:text-gray-100 transition-colors"
-                      >
-                        <Mail size={14} /> E-Mail erstellen
-                      </button>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setEmailModal({ lead, mode: 'analyse' })}
+                          disabled={!lead.analyse}
+                          className="flex items-center justify-center gap-2 px-4 py-2 w-full text-sm font-medium bg-primary-600/20 border border-primary-700/50 text-primary-200 rounded-xl hover:bg-primary-600/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          title={!lead.analyse ? 'Zuerst KI-Analyse ausführen' : ''}
+                        >
+                          <Sparkles size={14} /> Mit Analyse
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEmailModal({ lead, mode: 'standard' })}
+                          className="flex items-center justify-center gap-2 px-4 py-2 w-full text-sm font-medium bg-dark-800 border border-dark-700 text-gray-300 rounded-xl hover:bg-dark-700 hover:text-gray-100 transition-colors"
+                        >
+                          <FileText size={14} /> Standard
+                        </button>
+                      </div>
                     </div>
                   ))}
               </div>
@@ -404,8 +448,13 @@ export default function Akquise() {
         )}
       </div>
 
-      {emailLead && (
-        <EmailModal lead={emailLead} onClose={() => setEmailLead(null)} />
+      {emailModal && (
+        <EmailModal
+          key={`${emailModal.lead.id}-${emailModal.mode}`}
+          lead={emailModal.lead}
+          emailMode={emailModal.mode}
+          onClose={() => setEmailModal(null)}
+        />
       )}
     </div>
   );
