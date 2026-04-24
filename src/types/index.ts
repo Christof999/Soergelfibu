@@ -164,6 +164,8 @@ export interface Lead {
   analyse: LeadAnalyse | null;
   stern: boolean;
   erstelltAm: string;
+  /** ISO-Zeitpunkt, wenn die Akquise-E-Mail zuletzt per Resend erfolgreich versendet wurde */
+  akquiseEmailZuletztVersendetAm?: string;
 }
 
 /** Eingangsrechnung (Fibu) — für Dashboard-Summe ausreichend, wenn weitere Felder in Firestore existieren */
