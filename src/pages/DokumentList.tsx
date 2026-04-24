@@ -91,15 +91,16 @@ export default function DokumentList({ typ }: Props) {
         subtitle={`${docs.length} ${typLabel}e gesamt`}
         actions={
           <button
+            type="button"
             onClick={openCreate}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 w-full sm:w-auto bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
           >
             <Plus size={16} /> Neues {typLabel}
           </button>
         }
       />
 
-      <div className="p-8 space-y-4">
+      <div className="page-padding space-y-4">
         <div className="relative">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input
@@ -122,58 +123,107 @@ export default function DokumentList({ typ }: Props) {
           </div>
         ) : (
           <div className="bg-dark-800 rounded-2xl border border-dark-700 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-dark-900/60 text-left border-b border-dark-700">
-                  <th className="px-5 py-3 text-xs font-semibold text-gray-500">Nummer</th>
-                  <th className="px-5 py-3 text-xs font-semibold text-gray-500">Kunde</th>
-                  <th className="px-5 py-3 text-xs font-semibold text-gray-500">Betreff</th>
-                  <th className="px-5 py-3 text-xs font-semibold text-gray-500">Datum</th>
-                  <th className="px-5 py-3 text-xs font-semibold text-gray-500 text-right">Betrag</th>
-                  <th className="px-5 py-3 text-xs font-semibold text-gray-500">Status</th>
-                  <th className="px-5 py-3 text-xs font-semibold text-gray-500 text-right">Aktionen</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-dark-700">
-                {filtered.map(doc => {
-                  const kunde = data.kunden.find(k => k.id === doc.kundeId);
-                  const { brutto } = berechneGesamtsummen(doc.positionen);
-                  return (
-                    <tr key={doc.id} className="hover:bg-dark-700/50 transition-colors">
-                      <td className="px-5 py-3 font-mono text-xs text-gray-400 font-medium">{doc.nummer}</td>
-                      <td className="px-5 py-3 text-gray-300">{kunde?.firma || '–'}</td>
-                      <td className="px-5 py-3 text-gray-400 max-w-xs truncate">{doc.betreff || '–'}</td>
-                      <td className="px-5 py-3 text-gray-500 text-xs">
-                        {format(new Date(doc.datum), 'dd.MM.yyyy', { locale: de })}
-                      </td>
-                      <td className="px-5 py-3 text-right font-semibold text-gray-200">{fmtEur(brutto)}</td>
-                      <td className="px-5 py-3"><StatusBadge status={doc.status} /></td>
-                      <td className="px-5 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => handlePDF(doc)} title="PDF" className="p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors">
-                            <Download size={14} />
+            {/* Mobil: Karten */}
+            <ul className="md:hidden divide-y divide-dark-700">
+              {filtered.map(doc => {
+                const kunde = data.kunden.find(k => k.id === doc.kundeId);
+                const { brutto } = berechneGesamtsummen(doc.positionen);
+                return (
+                  <li key={doc.id} className="p-4 space-y-3">
+                    <div className="flex justify-between gap-3 items-start min-w-0">
+                      <div className="min-w-0">
+                        <p className="font-mono text-xs text-gray-400 font-medium break-all">{doc.nummer}</p>
+                        <p className="text-sm font-medium text-gray-200 mt-1 break-words">{kunde?.firma || '–'}</p>
+                        {doc.betreff && <p className="text-xs text-gray-500 mt-1 break-words">{doc.betreff}</p>}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-bold text-gray-100 tabular-nums">{fmtEur(brutto)}</p>
+                        <p className="text-xs text-gray-500 mt-0.5 whitespace-nowrap">
+                          {format(new Date(doc.datum), 'dd.MM.yyyy', { locale: de })}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <StatusBadge status={doc.status} />
+                      <div className="flex flex-wrap items-center gap-1 justify-end">
+                        <button type="button" onClick={() => handlePDF(doc)} title="PDF" className="p-2 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors">
+                          <Download size={16} />
+                        </button>
+                        <button type="button" onClick={() => handleDuplicate(doc)} title="Duplizieren" className="p-2 rounded-lg text-gray-500 hover:text-violet-400 hover:bg-violet-900/30 transition-colors">
+                          <Copy size={16} />
+                        </button>
+                        {typ === 'angebot' && (
+                          <button type="button" onClick={() => handleProjektErstellen(doc)} title="Projekt erstellen" className="p-2 rounded-lg text-gray-500 hover:text-emerald-400 hover:bg-emerald-900/30 transition-colors">
+                            <FolderPlus size={16} />
                           </button>
-                          <button onClick={() => handleDuplicate(doc)} title="Duplizieren" className="p-1.5 rounded-lg text-gray-500 hover:text-violet-400 hover:bg-violet-900/30 transition-colors">
-                            <Copy size={14} />
-                          </button>
-                          {typ === 'angebot' && (
-                            <button onClick={() => handleProjektErstellen(doc)} title="Projekt erstellen" className="p-1.5 rounded-lg text-gray-500 hover:text-emerald-400 hover:bg-emerald-900/30 transition-colors">
-                              <FolderPlus size={14} />
+                        )}
+                        <button type="button" onClick={() => openEdit(doc)} className="p-2 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors">
+                          <Pencil size={16} />
+                        </button>
+                        <button type="button" onClick={() => setDeleteId(doc.id)} className="p-2 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            {/* Desktop: Tabelle */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm min-w-[720px]">
+                <thead>
+                  <tr className="bg-dark-900/60 text-left border-b border-dark-700">
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-500">Nummer</th>
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-500">Kunde</th>
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-500">Betreff</th>
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-500">Datum</th>
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-500 text-right">Betrag</th>
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-500">Status</th>
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-500 text-right">Aktionen</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-dark-700">
+                  {filtered.map(doc => {
+                    const kunde = data.kunden.find(k => k.id === doc.kundeId);
+                    const { brutto } = berechneGesamtsummen(doc.positionen);
+                    return (
+                      <tr key={doc.id} className="hover:bg-dark-700/50 transition-colors">
+                        <td className="px-5 py-3 font-mono text-xs text-gray-400 font-medium whitespace-nowrap">{doc.nummer}</td>
+                        <td className="px-5 py-3 text-gray-300 max-w-[140px] truncate">{kunde?.firma || '–'}</td>
+                        <td className="px-5 py-3 text-gray-400 max-w-xs truncate">{doc.betreff || '–'}</td>
+                        <td className="px-5 py-3 text-gray-500 text-xs whitespace-nowrap">
+                          {format(new Date(doc.datum), 'dd.MM.yyyy', { locale: de })}
+                        </td>
+                        <td className="px-5 py-3 text-right font-semibold text-gray-200 tabular-nums">{fmtEur(brutto)}</td>
+                        <td className="px-5 py-3"><StatusBadge status={doc.status} /></td>
+                        <td className="px-5 py-3 text-right">
+                          <div className="flex items-center justify-end gap-1 flex-wrap">
+                            <button type="button" onClick={() => handlePDF(doc)} title="PDF" className="p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors">
+                              <Download size={14} />
                             </button>
-                          )}
-                          <button onClick={() => openEdit(doc)} className="p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors">
-                            <Pencil size={14} />
-                          </button>
-                          <button onClick={() => setDeleteId(doc.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors">
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                            <button type="button" onClick={() => handleDuplicate(doc)} title="Duplizieren" className="p-1.5 rounded-lg text-gray-500 hover:text-violet-400 hover:bg-violet-900/30 transition-colors">
+                              <Copy size={14} />
+                            </button>
+                            {typ === 'angebot' && (
+                              <button type="button" onClick={() => handleProjektErstellen(doc)} title="Projekt erstellen" className="p-1.5 rounded-lg text-gray-500 hover:text-emerald-400 hover:bg-emerald-900/30 transition-colors">
+                                <FolderPlus size={14} />
+                              </button>
+                            )}
+                            <button type="button" onClick={() => openEdit(doc)} className="p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors">
+                              <Pencil size={14} />
+                            </button>
+                            <button type="button" onClick={() => setDeleteId(doc.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors">
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
