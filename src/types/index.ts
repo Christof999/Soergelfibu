@@ -87,6 +87,10 @@ export interface Firma {
   nextAngebotNr: number;
   nextRechnungNr: number;
   terminUrl: string;
+  /**
+   * Geschätzte Steuerlast auf den Gewinn (Umsatz − Ausgaben), in % — nur Dashboard-Hinweis, keine Steuerberatung.
+   */
+  dashboardSteuerSchaetzungProzent: number;
 }
 
 // ─── Projektmanagement ────────────────────────────────────────────────────────
@@ -162,6 +166,17 @@ export interface Lead {
   erstelltAm: string;
 }
 
+/** Eingangsrechnung (Fibu) — für Dashboard-Summe ausreichend, wenn weitere Felder in Firestore existieren */
+export interface Eingangsrechnung {
+  id: string;
+  lieferant: string;
+  rechnungsnummer: string;
+  betragBrutto: number;
+  faelligAm: string;
+  notizen: string;
+  erstelltAm: string;
+}
+
 export interface AppData {
   firma: Firma;
   kunden: Kunde[];
@@ -169,4 +184,5 @@ export interface AppData {
   dokumente: Dokument[];
   projekte: Projekt[];
   leads: Lead[];
+  eingangsrechnungen: Eingangsrechnung[];
 }
