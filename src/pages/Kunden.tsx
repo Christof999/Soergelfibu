@@ -48,18 +48,18 @@ function KundeForm({
 
   return (
     <form onSubmit={handleSubmit(onSave)} className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {field('Firma / Name *', 'firma', { required: 'Pflichtfeld' })}
         {field('Ansprechpartner', 'ansprechpartner')}
         {field('E-Mail', 'email')}
         {field('Telefon', 'telefon')}
       </div>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {field('Straße', 'strasse')}
         {field('PLZ', 'plz')}
         {field('Ort', 'ort')}
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {field('Land', 'land')}
         {field('USt-IdNr.', 'ustId')}
       </div>
@@ -115,15 +115,16 @@ export default function Kunden() {
         subtitle={`${data.kunden.length} Kunden gesamt`}
         actions={
           <button
+            type="button"
             onClick={openCreate}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 w-full sm:w-auto bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
           >
             <Plus size={16} /> Neuer Kunde
           </button>
         }
       />
 
-      <div className="p-8 space-y-4">
+      <div className="page-padding space-y-4">
         <div className="relative">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input
@@ -146,45 +147,72 @@ export default function Kunden() {
           </div>
         ) : (
           <div className="bg-dark-800 rounded-2xl border border-dark-700 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-dark-900/60 text-left border-b border-dark-700">
-                  <th className="px-5 py-3 text-xs font-semibold text-gray-500">Nr.</th>
-                  <th className="px-5 py-3 text-xs font-semibold text-gray-500">Firma</th>
-                  <th className="px-5 py-3 text-xs font-semibold text-gray-500">Ansprechpartner</th>
-                  <th className="px-5 py-3 text-xs font-semibold text-gray-500">E-Mail</th>
-                  <th className="px-5 py-3 text-xs font-semibold text-gray-500">Ort</th>
-                  <th className="px-5 py-3 text-xs font-semibold text-gray-500 text-right">Aktionen</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-dark-700">
-                {filtered.map(k => (
-                  <tr key={k.id} className="hover:bg-dark-700/50 transition-colors">
-                    <td className="px-5 py-3 text-gray-500 font-mono text-xs">{k.kundennummer}</td>
-                    <td className="px-5 py-3 font-medium text-gray-200">{k.firma}</td>
-                    <td className="px-5 py-3 text-gray-400">{k.ansprechpartner}</td>
-                    <td className="px-5 py-3 text-gray-400">{k.email}</td>
-                    <td className="px-5 py-3 text-gray-400">{k.plz} {k.ort}</td>
-                    <td className="px-5 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => openEdit(k)}
-                          className="p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          onClick={() => setDeleteId(k.id)}
-                          className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
+            <ul className="md:hidden divide-y divide-dark-700">
+              {filtered.map(k => (
+                <li key={k.id} className="p-4 space-y-2">
+                  <div className="flex justify-between gap-2 items-start min-w-0">
+                    <div className="min-w-0">
+                      <p className="font-mono text-xs text-gray-500">{k.kundennummer}</p>
+                      <p className="font-medium text-gray-100 break-words">{k.firma}</p>
+                      {k.ansprechpartner && <p className="text-sm text-gray-400 break-words">{k.ansprechpartner}</p>}
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      <button type="button" onClick={() => openEdit(k)} className="p-2 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors">
+                        <Pencil size={16} />
+                      </button>
+                      <button type="button" onClick={() => setDeleteId(k.id)} className="p-2 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                  {k.email && <p className="text-xs text-gray-400 break-all">{k.email}</p>}
+                  <p className="text-xs text-gray-500">{k.plz} {k.ort}</p>
+                </li>
+              ))}
+            </ul>
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm min-w-[640px]">
+                <thead>
+                  <tr className="bg-dark-900/60 text-left border-b border-dark-700">
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-500">Nr.</th>
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-500">Firma</th>
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-500">Ansprechpartner</th>
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-500">E-Mail</th>
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-500">Ort</th>
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-500 text-right">Aktionen</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-dark-700">
+                  {filtered.map(k => (
+                    <tr key={k.id} className="hover:bg-dark-700/50 transition-colors">
+                      <td className="px-5 py-3 text-gray-500 font-mono text-xs whitespace-nowrap">{k.kundennummer}</td>
+                      <td className="px-5 py-3 font-medium text-gray-200 max-w-[140px] truncate">{k.firma}</td>
+                      <td className="px-5 py-3 text-gray-400 max-w-[120px] truncate">{k.ansprechpartner}</td>
+                      <td className="px-5 py-3 text-gray-400 max-w-[160px] truncate">{k.email}</td>
+                      <td className="px-5 py-3 text-gray-400 whitespace-nowrap">{k.plz} {k.ort}</td>
+                      <td className="px-5 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => openEdit(k)}
+                            className="p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteId(k.id)}
+                            className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

@@ -52,7 +52,7 @@ function ArtikelForm({
           className={`${inputCls} resize-none`}
         />
       </div>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
           <label className="block text-xs font-medium text-gray-400 mb-1">Preis (netto) *</label>
           <input
@@ -133,15 +133,16 @@ export default function ArtikelPage() {
         subtitle={`${data.artikel.length} Artikel gesamt`}
         actions={
           <button
+            type="button"
             onClick={openCreate}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 w-full sm:w-auto bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
           >
             <Plus size={16} /> Neuer Artikel
           </button>
         }
       />
 
-      <div className="p-8 space-y-4">
+      <div className="page-padding space-y-4">
         <div className="relative">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input
@@ -164,44 +165,75 @@ export default function ArtikelPage() {
           </div>
         ) : (
           <div className="bg-dark-800 rounded-2xl border border-dark-700 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-dark-900/60 text-left border-b border-dark-700">
-                  <th className="px-5 py-3 text-xs font-semibold text-gray-500">Nr.</th>
-                  <th className="px-5 py-3 text-xs font-semibold text-gray-500">Bezeichnung</th>
-                  <th className="px-5 py-3 text-xs font-semibold text-gray-500">Kategorie</th>
-                  <th className="px-5 py-3 text-xs font-semibold text-gray-500">Einheit</th>
-                  <th className="px-5 py-3 text-xs font-semibold text-gray-500 text-right">Preis (netto)</th>
-                  <th className="px-5 py-3 text-xs font-semibold text-gray-500 text-right">MwSt.</th>
-                  <th className="px-5 py-3 text-xs font-semibold text-gray-500 text-right">Aktionen</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-dark-700">
-                {filtered.map(a => (
-                  <tr key={a.id} className="hover:bg-dark-700/50 transition-colors">
-                    <td className="px-5 py-3 text-gray-500 font-mono text-xs">{a.artikelnummer}</td>
-                    <td className="px-5 py-3">
-                      <p className="font-medium text-gray-200">{a.bezeichnung}</p>
-                      {a.beschreibung && <p className="text-xs text-gray-500 mt-0.5 truncate max-w-xs">{a.beschreibung}</p>}
-                    </td>
-                    <td className="px-5 py-3 text-gray-400">{a.kategorie || '–'}</td>
-                    <td className="px-5 py-3 text-gray-400">{a.einheit}</td>
-                    <td className="px-5 py-3 text-right font-semibold text-gray-200">{fmtEur(a.preis)}</td>
-                    <td className="px-5 py-3 text-right text-gray-400">{a.mwstSatz}%</td>
-                    <td className="px-5 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openEdit(a)} className="p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors">
-                          <Pencil size={14} />
-                        </button>
-                        <button onClick={() => setDeleteId(a.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors">
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
+            <ul className="lg:hidden divide-y divide-dark-700">
+              {filtered.map(a => (
+                <li key={a.id} className="p-4 space-y-2">
+                  <div className="flex justify-between gap-3 items-start min-w-0">
+                    <div className="min-w-0">
+                      <p className="font-mono text-xs text-gray-500">{a.artikelnummer}</p>
+                      <p className="font-medium text-gray-100 break-words">{a.bezeichnung}</p>
+                      {a.beschreibung && <p className="text-xs text-gray-500 mt-1 break-words">{a.beschreibung}</p>}
+                    </div>
+                    <div className="text-right shrink-0 tabular-nums">
+                      <p className="text-sm font-bold text-gray-100">{fmtEur(a.preis)}</p>
+                      <p className="text-xs text-gray-500">MwSt. {a.mwstSatz}%</p>
+                    </div>
+                  </div>
+                  <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-400">
+                    <div><dt className="inline text-gray-600">Kategorie: </dt><dd className="inline text-gray-300">{a.kategorie || '–'}</dd></div>
+                    <div><dt className="inline text-gray-600">Einheit: </dt><dd className="inline text-gray-300">{a.einheit}</dd></div>
+                  </dl>
+                  <div className="flex justify-end gap-1 pt-1">
+                    <button type="button" onClick={() => openEdit(a)} className="p-2 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors">
+                      <Pencil size={16} />
+                    </button>
+                    <button type="button" onClick={() => setDeleteId(a.id)} className="p-2 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <div className="hidden lg:block overflow-x-auto">
+              <table className="w-full text-sm min-w-[640px]">
+                <thead>
+                  <tr className="bg-dark-900/60 text-left border-b border-dark-700">
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-500">Nr.</th>
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-500">Bezeichnung</th>
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-500">Kategorie</th>
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-500">Einheit</th>
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-500 text-right">Preis (netto)</th>
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-500 text-right">MwSt.</th>
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-500 text-right">Aktionen</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-dark-700">
+                  {filtered.map(a => (
+                    <tr key={a.id} className="hover:bg-dark-700/50 transition-colors">
+                      <td className="px-5 py-3 text-gray-500 font-mono text-xs whitespace-nowrap">{a.artikelnummer}</td>
+                      <td className="px-5 py-3 max-w-[200px]">
+                        <p className="font-medium text-gray-200 truncate">{a.bezeichnung}</p>
+                        {a.beschreibung && <p className="text-xs text-gray-500 mt-0.5 truncate">{a.beschreibung}</p>}
+                      </td>
+                      <td className="px-5 py-3 text-gray-400">{a.kategorie || '–'}</td>
+                      <td className="px-5 py-3 text-gray-400">{a.einheit}</td>
+                      <td className="px-5 py-3 text-right font-semibold text-gray-200 tabular-nums">{fmtEur(a.preis)}</td>
+                      <td className="px-5 py-3 text-right text-gray-400">{a.mwstSatz}%</td>
+                      <td className="px-5 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button type="button" onClick={() => openEdit(a)} className="p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors">
+                            <Pencil size={14} />
+                          </button>
+                          <button type="button" onClick={() => setDeleteId(a.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

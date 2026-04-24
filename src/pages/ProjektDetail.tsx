@@ -58,8 +58,9 @@ function AngebotPositionen({ angebot }: { angebot: NonNullable<ReturnType<typeof
   return (
     <div className="bg-dark-800 border border-dark-700 rounded-2xl overflow-hidden">
       <button
+        type="button"
         onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between px-5 py-4 hover:bg-dark-700/40 transition-colors"
+        className="w-full flex items-center justify-between px-4 sm:px-5 py-4 hover:bg-dark-700/40 transition-colors gap-3 min-w-0"
       >
         <div className="flex items-center gap-3">
           <FileText size={15} className="text-amber-400 shrink-0" />
@@ -80,38 +81,60 @@ function AngebotPositionen({ angebot }: { angebot: NonNullable<ReturnType<typeof
             <p className="px-5 py-4 text-sm text-gray-500">Keine Positionen vorhanden.</p>
           ) : (
             <>
-              {/* Header */}
-              <div className="grid grid-cols-12 gap-2 px-5 py-2 bg-dark-900/60 text-xs font-semibold text-gray-500">
-                <div className="col-span-1">#</div>
-                <div className="col-span-4">Bezeichnung</div>
-                <div className="col-span-1 text-right">Menge</div>
-                <div className="col-span-1">Einheit</div>
-                <div className="col-span-2 text-right">Einzelpreis</div>
-                <div className="col-span-1 text-right">MwSt.</div>
-                <div className="col-span-2 text-right">Gesamt</div>
+              <ul className="md:hidden divide-y divide-dark-700">
+                {angebot.positionen.map((pos, idx) => {
+                  const { netto: posNetto } = berechneZeile(pos);
+                  return (
+                    <li key={pos.id} className="p-4 space-y-2">
+                      <div className="flex justify-between gap-2 items-start min-w-0">
+                        <div className="min-w-0">
+                          <p className="text-xs text-gray-500 font-mono">{idx + 1}</p>
+                          <p className="font-medium text-gray-100 break-words">{pos.bezeichnung}</p>
+                          {pos.beschreibung && <p className="text-xs text-gray-500 mt-1 break-words">{pos.beschreibung}</p>}
+                        </div>
+                        <p className="text-sm font-bold text-gray-100 tabular-nums shrink-0">{fmtEur(posNetto)}</p>
+                      </div>
+                      <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-400">
+                        <div><dt className="text-gray-600">Menge</dt><dd className="text-gray-300">{pos.menge.toLocaleString('de-DE')} {pos.einheit}</dd></div>
+                        <div><dt className="text-gray-600">Einzelpreis</dt><dd className="text-gray-300 tabular-nums">{fmtEur(pos.einzelpreis)}</dd></div>
+                        <div><dt className="text-gray-600">MwSt.</dt><dd className="text-gray-300">{pos.mwstSatz}%{pos.rabatt > 0 ? ` · Rabatt ${pos.rabatt}%` : ''}</dd></div>
+                      </dl>
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="hidden md:block">
+                <div className="grid grid-cols-12 gap-2 px-5 py-2 bg-dark-900/60 text-xs font-semibold text-gray-500">
+                  <div className="col-span-1">#</div>
+                  <div className="col-span-4">Bezeichnung</div>
+                  <div className="col-span-1 text-right">Menge</div>
+                  <div className="col-span-1">Einheit</div>
+                  <div className="col-span-2 text-right">Einzelpreis</div>
+                  <div className="col-span-1 text-right">MwSt.</div>
+                  <div className="col-span-2 text-right">Gesamt</div>
+                </div>
+                {angebot.positionen.map((pos, idx) => {
+                  const { netto: posNetto } = berechneZeile(pos);
+                  return (
+                    <div key={pos.id} className="grid grid-cols-12 gap-2 px-5 py-3 border-t border-dark-700 text-sm hover:bg-dark-700/30 transition-colors">
+                      <div className="col-span-1 text-gray-500 text-xs pt-0.5">{idx + 1}</div>
+                      <div className="col-span-4 min-w-0">
+                        <p className="text-gray-200 font-medium truncate">{pos.bezeichnung}</p>
+                        {pos.beschreibung && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{pos.beschreibung}</p>}
+                      </div>
+                      <div className="col-span-1 text-right text-gray-300">{pos.menge.toLocaleString('de-DE')}</div>
+                      <div className="col-span-1 text-gray-400 text-xs pt-0.5">{pos.einheit}</div>
+                      <div className="col-span-2 text-right text-gray-300 tabular-nums">{fmtEur(pos.einzelpreis)}</div>
+                      <div className="col-span-1 text-right text-gray-400 text-xs pt-0.5">
+                        {pos.mwstSatz}%{pos.rabatt > 0 && <span className="block text-amber-400">-{pos.rabatt}%</span>}
+                      </div>
+                      <div className="col-span-2 text-right font-semibold text-gray-200 tabular-nums">{fmtEur(posNetto)}</div>
+                    </div>
+                  );
+                })}
               </div>
-              {angebot.positionen.map((pos, idx) => {
-                const { netto: posNetto } = berechneZeile(pos);
-                return (
-                  <div key={pos.id} className="grid grid-cols-12 gap-2 px-5 py-3 border-t border-dark-700 text-sm hover:bg-dark-700/30 transition-colors">
-                    <div className="col-span-1 text-gray-500 text-xs pt-0.5">{idx + 1}</div>
-                    <div className="col-span-4">
-                      <p className="text-gray-200 font-medium">{pos.bezeichnung}</p>
-                      {pos.beschreibung && <p className="text-xs text-gray-500 mt-0.5">{pos.beschreibung}</p>}
-                    </div>
-                    <div className="col-span-1 text-right text-gray-300">{pos.menge.toLocaleString('de-DE')}</div>
-                    <div className="col-span-1 text-gray-400 text-xs pt-0.5">{pos.einheit}</div>
-                    <div className="col-span-2 text-right text-gray-300">{fmtEur(pos.einzelpreis)}</div>
-                    <div className="col-span-1 text-right text-gray-400 text-xs pt-0.5">
-                      {pos.mwstSatz}%{pos.rabatt > 0 && <span className="block text-amber-400">-{pos.rabatt}%</span>}
-                    </div>
-                    <div className="col-span-2 text-right font-semibold text-gray-200">{fmtEur(posNetto)}</div>
-                  </div>
-                );
-              })}
-              {/* Summen */}
-              <div className="border-t border-dark-700 px-5 py-3 space-y-1">
-                <div className="flex justify-end gap-8 text-xs text-gray-400">
+              <div className="border-t border-dark-700 px-4 sm:px-5 py-3 space-y-1">
+                <div className="flex flex-col sm:flex-row sm:justify-end gap-2 sm:gap-8 text-xs text-gray-400">
                   <span>Netto: <span className="text-gray-300 font-medium">{fmtEur(netto)}</span></span>
                   <span>MwSt.: <span className="text-gray-300 font-medium">{fmtEur(mwstBetrag)}</span></span>
                 </div>
@@ -145,12 +168,12 @@ function ZugangForm({ initial, onSave, onCancel }: {
   });
   return (
     <form onSubmit={handleSubmit(onSave)} className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div className="col-span-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="sm:col-span-2">
           <label className="block text-xs font-medium text-gray-400 mb-1">Bezeichnung *</label>
           <input {...register('bezeichnung', { required: true })} className={inputCls} placeholder="z.B. Hosting, CMS, Figma…" />
         </div>
-        <div className="col-span-2">
+        <div className="sm:col-span-2">
           <label className="block text-xs font-medium text-gray-400 mb-1">URL / Link</label>
           <input {...register('url')} className={inputCls} placeholder="https://…" />
         </div>
@@ -162,7 +185,7 @@ function ZugangForm({ initial, onSave, onCancel }: {
           <label className="block text-xs font-medium text-gray-400 mb-1">Passwort / Token</label>
           <input {...register('passwort')} className={inputCls} />
         </div>
-        <div className="col-span-2">
+        <div className="sm:col-span-2">
           <label className="block text-xs font-medium text-gray-400 mb-1">Notizen</label>
           <textarea {...register('notizen')} rows={2} className={`${inputCls} resize-none`} />
         </div>
@@ -449,9 +472,9 @@ export default function ProjektDetail() {
   const projekt = data.projekte?.find(p => p.id === id);
   if (!projekt) {
     return (
-      <div className="p-8 text-center text-gray-500">
+      <div className="page-padding text-center text-gray-500">
         Projekt nicht gefunden.{' '}
-        <button onClick={() => navigate('/projekte')} className="text-primary-400 hover:underline">Zurück zur Liste</button>
+        <button type="button" onClick={() => navigate('/projekte')} className="text-primary-400 hover:underline">Zurück zur Liste</button>
       </div>
     );
   }
@@ -494,41 +517,42 @@ export default function ProjektDetail() {
   return (
     <div>
       {/* Kopf */}
-      <div className="bg-dark-800 border-b border-dark-700 px-8 py-5">
-        <button onClick={() => navigate('/projekte')} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 mb-3 transition-colors">
+      <div className="bg-dark-800 border-b border-dark-700 px-4 sm:px-8 py-4 sm:py-5">
+        <button type="button" onClick={() => navigate('/projekte')} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 mb-3 transition-colors">
           <ArrowLeft size={14} /> Alle Projekte
         </button>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-xl font-bold text-gray-100">{projekt.name}</h1>
-              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_CLS[projekt.status]}`}>
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-1">
+              <h1 className="text-lg sm:text-xl font-bold text-gray-100 break-words">{projekt.name}</h1>
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium shrink-0 ${STATUS_CLS[projekt.status]}`}>
                 {STATUS_LABELS[projekt.status]}
               </span>
             </div>
-            <div className="flex items-center gap-3 text-xs text-gray-500">
-              {kunde && <span>{kunde.firma || kunde.ansprechpartner}</span>}
-              {angebot && <><span>·</span><span className="text-gray-600">{angebot.nummer}</span></>}
-              <span>·</span>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+              {kunde && <span className="break-words">{kunde.firma || kunde.ansprechpartner}</span>}
+              {angebot && <><span className="hidden sm:inline">·</span><span className="text-gray-600">{angebot.nummer}</span></>}
+              <span className="hidden sm:inline">·</span>
               <span>Erstellt {format(new Date(projekt.erstelltAm), 'dd.MM.yyyy', { locale: de })}</span>
             </div>
           </div>
           <select
             value={projekt.status}
             onChange={e => setStatus(e.target.value as ProjektStatus)}
-            className="bg-dark-900 border border-dark-700 rounded-lg px-3 py-1.5 text-xs text-gray-300 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            className="w-full sm:w-auto shrink-0 bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-xs text-gray-300 focus:outline-none focus:ring-1 focus:ring-primary-500"
           >
             {(Object.keys(STATUS_LABELS) as ProjektStatus[]).map(s => (
               <option key={s} value={s}>{STATUS_LABELS[s]}</option>
             ))}
           </select>
         </div>
-        <div className="flex gap-1 mt-5">
+        <div className="flex gap-1 mt-4 sm:mt-5 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-thin">
           {tabs.map(t => (
             <button
+              type="button"
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
                 tab === t.id ? 'bg-primary-600/20 text-primary-300' : 'text-gray-500 hover:text-gray-300 hover:bg-dark-700'
               }`}
             >
@@ -541,7 +565,7 @@ export default function ProjektDetail() {
         </div>
       </div>
 
-      <div className="p-8">
+      <div className="page-padding">
 
         {/* ── Übersicht ── */}
         {tab === 'uebersicht' && (
@@ -562,7 +586,7 @@ export default function ProjektDetail() {
             )}
             {/* Angebot mit aufklappbaren Positionen */}
             {angebot && <AngebotPositionen angebot={angebot} />}
-            <div className="bg-dark-800 border border-dark-700 rounded-2xl p-5 grid grid-cols-2 gap-4 text-sm">
+            <div className="bg-dark-800 border border-dark-700 rounded-2xl p-5 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
               <div><p className="text-xs text-gray-500 mb-0.5">Zugänge</p><p className="font-semibold text-gray-200">{projekt.zugaenge.length}</p></div>
               <div><p className="text-xs text-gray-500 mb-0.5">Kommunikation</p><p className="font-semibold text-gray-200">{projekt.kommunikation.length}</p></div>
               <div><p className="text-xs text-gray-500 mb-0.5">Erstellt am</p><p className="text-gray-300">{format(new Date(projekt.erstelltAm), 'dd.MM.yyyy', { locale: de })}</p></div>

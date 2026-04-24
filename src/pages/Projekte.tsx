@@ -58,8 +58,8 @@ function ProjektForm({
 
   return (
     <form onSubmit={handleSubmit(onSave)} className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div className="col-span-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="sm:col-span-2">
           <label className="block text-xs font-medium text-gray-400 mb-1">Projektname *</label>
           <input {...register('name', { required: 'Pflichtfeld' })} className={inputCls} placeholder="z.B. Website Relaunch – Muster GmbH" />
           {errors.name && <p className="text-xs text-red-400 mt-1">{errors.name.message}</p>}
@@ -92,7 +92,7 @@ function ProjektForm({
           <label className="block text-xs font-medium text-gray-400 mb-1">Tags (kommagetrennt)</label>
           <input {...register('tags')} className={inputCls} placeholder="z.B. WebApp, SEO, React" />
         </div>
-        <div className="col-span-2">
+        <div className="sm:col-span-2">
           <label className="block text-xs font-medium text-gray-400 mb-1">Beschreibung</label>
           <textarea {...register('beschreibung')} rows={4} className={`${inputCls} resize-none`} placeholder="Beschreibe das Projekt, Ziele, Technologien…" />
         </div>
@@ -136,13 +136,13 @@ export default function Projekte() {
         title="Projekte"
         subtitle={`${projekte.length} Projekte gesamt`}
         actions={
-          <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors">
+          <button type="button" onClick={openCreate} className="flex items-center justify-center gap-2 px-4 py-2.5 w-full sm:w-auto bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors">
             <Plus size={16} /> Neues Projekt
           </button>
         }
       />
 
-      <div className="p-8">
+      <div className="page-padding">
         {projekte.length === 0 ? (
           <div className="bg-dark-800 rounded-2xl border border-dark-700 py-20 flex flex-col items-center gap-4 text-gray-600">
             <FolderKanban size={44} strokeWidth={1.2} />
