@@ -20,22 +20,22 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-blue-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8">
+    <div className="min-h-screen bg-dark-900 flex items-center justify-center p-4">
+      <div className="bg-dark-800 border border-dark-700 rounded-2xl shadow-2xl w-full max-w-sm p-8">
         <div className="flex flex-col items-center mb-8">
           <div className="w-14 h-14 bg-primary-600 rounded-2xl flex items-center justify-center mb-4">
-            <span className="text-white font-bold text-xl">SF</span>
+            <span className="text-white font-bold text-xl">SØ</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">SörgelFibu</h1>
+          <h1 className="text-2xl font-bold text-gray-100">SØRGEL-design</h1>
           <p className="text-sm text-gray-500 mt-1">Angebote & Rechnungen</p>
         </div>
 
-        <p className="text-sm text-gray-600 text-center mb-6">
+        <p className="text-sm text-gray-400 text-center mb-6">
           Melde dich mit deinem Google-Konto an, um auf deine Daten zuzugreifen – von jedem Gerät aus.
         </p>
 
         {error && (
-          <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          <div className="mb-4 px-4 py-3 bg-red-900/40 border border-red-700 rounded-lg text-sm text-red-300">
             {error}
           </div>
         )}
@@ -43,10 +43,10 @@ export default function Login() {
         <button
           onClick={handleLogin}
           disabled={loading}
-          className="w-full flex items-center justify-center gap-3 px-5 py-3 bg-white border-2 border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:border-primary-400 hover:bg-primary-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+          className="w-full flex items-center justify-center gap-3 px-5 py-3 bg-dark-700 border border-dark-700 rounded-xl text-sm font-semibold text-gray-200 hover:border-primary-500 hover:bg-dark-700/80 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? (
-            <svg className="animate-spin h-5 w-5 text-primary-600" viewBox="0 0 24 24" fill="none">
+            <svg className="animate-spin h-5 w-5 text-primary-400" viewBox="0 0 24 24" fill="none">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
             </svg>
@@ -61,7 +61,7 @@ export default function Login() {
           {loading ? 'Anmelden…' : 'Mit Google anmelden'}
         </button>
 
-        <p className="text-xs text-gray-400 text-center mt-6">
+        <p className="text-xs text-gray-600 text-center mt-6">
           Deine Daten werden sicher in Firebase gespeichert.<br />
           Nur du hast Zugriff auf dein Konto.
         </p>

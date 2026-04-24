@@ -8,27 +8,28 @@ import Kunden from './pages/Kunden';
 import ArtikelPage from './pages/Artikel';
 import DokumentList from './pages/DokumentList';
 import Einstellungen from './pages/Einstellungen';
+import Projekte from './pages/Projekte';
+import ProjektDetail from './pages/ProjektDetail';
+import Akquise from './pages/Akquise';
 
 function ProtectedRoutes() {
   const { user, loading } = useAuth();
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-dark-900">
         <div className="flex flex-col items-center gap-3">
-          <svg className="animate-spin h-8 w-8 text-primary-600" viewBox="0 0 24 24" fill="none">
+          <svg className="animate-spin h-8 w-8 text-primary-400" viewBox="0 0 24 24" fill="none">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
           </svg>
-          <p className="text-sm text-gray-500">Lade…</p>
+          <p className="text-sm text-gray-400">Lade…</p>
         </div>
       </div>
     );
   }
 
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
+  if (!user) return <Navigate to="/login" replace />;
 
   return (
     <AppProvider>
@@ -39,6 +40,9 @@ function ProtectedRoutes() {
           <Route path="artikel" element={<ArtikelPage />} />
           <Route path="angebote" element={<DokumentList typ="angebot" />} />
           <Route path="rechnungen" element={<DokumentList typ="rechnung" />} />
+          <Route path="projekte" element={<Projekte />} />
+          <Route path="projekte/:id" element={<ProjektDetail />} />
+          <Route path="akquise" element={<Akquise />} />
           <Route path="einstellungen" element={<Einstellungen />} />
         </Route>
       </Routes>

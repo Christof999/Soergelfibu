@@ -1,0 +1,25 @@
+name: Set Vercel Environment Variables
+
+on:
+  workflow_dispatch:
+
+jobs:
+  set-env-vars:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Vercel CLI
+        run: npm install -g vercel
+
+      - name: Set Firebase Environment Variables in Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+        run: |
+          vercel env add VITE_FIREBASE_API_KEY production --token=$VERCEL_TOKEN <<< "AIzaSyBYODolh9BJw9Y-nMvIo6DIoAwiH3GP7sc"
+          vercel env add VITE_FIREBASE_AUTH_DOMAIN production --token=$VERCEL_TOKEN <<< "soergelfibu.firebaseapp.com"
+          vercel env add VITE_FIREBASE_PROJECT_ID production --token=$VERCEL_TOKEN <<< "soergelfibu"
+          vercel env add VITE_FIREBASE_STORAGE_BUCKET production --token=$VERCEL_TOKEN <<< "soergelfibu.firebasestorage.app"
+          vercel env add VITE_FIREBASE_MESSAGING_SENDER_ID production --token=$VERCEL_TOKEN <<< "215745047461"
+          vercel env add VITE_FIREBASE_APP_ID production --token=$VERCEL_TOKEN <<< "1:215745047461:web:56e719b84af5f5e764964c"
+          echo "✓ Alle Firebase Umgebungsvariablen in Vercel gesetzt"
