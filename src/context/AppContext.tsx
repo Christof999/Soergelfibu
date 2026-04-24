@@ -30,6 +30,7 @@ const defaultFirma: Firma = {
   nextAngebotNr: 1,
   nextRechnungNr: 1,
   terminUrl: 'https://cal.com/',
+  dashboardSteuerSchaetzungProzent: 30,
 };
 
 const emptyData: AppData = {
@@ -39,6 +40,7 @@ const emptyData: AppData = {
   dokumente: [],
   projekte: [],
   leads: [],
+  eingangsrechnungen: [],
 };
 
 // ─── Firestore erlaubt keine undefined-Werte ──────────────────────────────────
@@ -123,7 +125,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const unsub = onSnapshot(userDocRef, (snap) => {
       if (snap.exists()) {
         const d = snap.data() as AppData;
-        setData({ ...emptyData, ...d, projekte: d.projekte ?? [], leads: d.leads ?? [] });
+        setData({
+          ...emptyData,
+          ...d,
+          firma: { ...emptyData.firma, ...d.firma },
+          projekte: d.projekte ?? [],
+          leads: d.leads ?? [],
+          eingangsrechnungen: d.eingangsrechnungen ?? [],
+        });
       } else {
         setDoc(userDocRef, sanitize(emptyData));
       }
@@ -228,7 +237,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Import / Export ───────────────────────────────────────────────────────
   const exportData = () => data;
-  const importData = async (imported: AppData) => persist(imported);
+  const importData = async (imported: AppData) =>
+    persist({
+      ...emptyData,
+      ...imported,
+      firma: { ...emptyData.firma, ...imported.firma },
+      projekte: imported.projekte ?? [],
+      leads: imported.leads ?? [],
+      eingangsrechnungen: imported.eingangsrechnungen ?? [],
+    });
 
   return (
     <AppContext.Provider value={{
