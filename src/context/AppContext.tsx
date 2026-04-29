@@ -7,8 +7,9 @@ import {
 import { db, storage } from '../firebase/config';
 import { ref, deleteObject } from 'firebase/storage';
 import { useAuth } from './AuthContext';
-import { AppData, Firma, Kunde, Artikel, Dokument, Projekt, ProjektZugang, ProjektKommunikation, KommunikationsAnhang, Lead, Eingangsrechnung } from '../types';
+import { AppData, Firma, Kunde, Artikel, Dokument, Projekt, ProjektZugang, ProjektKommunikation, KommunikationsAnhang, Lead, Eingangsrechnung, ServiceVertrag } from '../types';
 import { v4 as uuidv4 } from 'uuid';
+import { buildRechnungAusAngebot } from '../utils/rechnungAusAngebot';
 
 const defaultFirma: Firma = {
   name: 'Meine Softwarefirma GmbH',
@@ -42,6 +43,7 @@ const emptyData: AppData = {
   projekte: [],
   leads: [],
   eingangsrechnungen: [],
+  serviceVertraege: [],
 };
 
 // ─── Firestore erlaubt keine undefined-Werte ──────────────────────────────────
@@ -89,7 +91,7 @@ interface AppContextValue {
   addArtikel: (a: Omit<Artikel, 'id' | 'artikelnummer'>) => Promise<void>;
   updateArtikel: (a: Artikel) => Promise<void>;
   deleteArtikel: (id: string) => Promise<void>;
-  addDokument: (d: Omit<Dokument, 'id' | 'nummer' | 'erstelltAm' | 'geaendertAm'>) => Promise<void>;
+  addDokument: (d: Omit<Dokument, 'id' | 'nummer' | 'erstelltAm' | 'geaendertAm'>) => Promise<Dokument>;
   updateDokument: (d: Dokument) => Promise<void>;
   deleteDokument: (id: string) => Promise<void>;
   addProjekt: (p: Omit<Projekt, 'id' | 'erstelltAm' | 'geaendertAm'>) => Promise<Projekt>;
@@ -108,6 +110,9 @@ interface AppContextValue {
   addEingangsrechnung: (e: Omit<Eingangsrechnung, 'id' | 'erstelltAm'> & { id?: string }) => Promise<void>;
   updateEingangsrechnung: (e: Eingangsrechnung) => Promise<void>;
   deleteEingangsrechnung: (id: string) => Promise<void>;
+  addServiceVertrag: (v: Omit<ServiceVertrag, 'id' | 'erstelltAm' | 'geaendertAm'>) => Promise<void>;
+  updateServiceVertrag: (v: ServiceVertrag) => Promise<void>;
+  deleteServiceVertrag: (id: string) => Promise<void>;
   exportData: () => AppData;
   importData: (data: AppData) => Promise<void>;
 }
@@ -136,6 +141,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           projekte: d.projekte ?? [],
           leads: d.leads ?? [],
           eingangsrechnungen: d.eingangsrechnungen ?? [],
+          serviceVertraege: d.serviceVertraege ?? [],
         });
       } else {
         setDoc(userDocRef, sanitize(emptyData));
@@ -150,6 +156,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setData(updated);
     await setDoc(userDocRef, sanitize(updated));
   }, [userDocRef]);
+
+  /** Ein Dokument anhängen inkl. Nummernkreis (reiner Datenfluss, kein React-State). */
+  const appendDokument = (
+    base: AppData,
+    d: Omit<Dokument, 'id' | 'nummer' | 'erstelltAm' | 'geaendertAm'>
+  ): { data: AppData; dokument: Dokument } => {
+    const { typ } = d;
+    const prefix = typ === 'angebot' ? base.firma.angebotPrefix : base.firma.rechnungPrefix;
+    const nr = typ === 'angebot' ? base.firma.nextAngebotNr : base.firma.nextRechnungNr;
+    const nummer = `${prefix}-${new Date().getFullYear()}-${String(nr).padStart(4, '0')}`;
+    const now = new Date().toISOString();
+    const dokument: Dokument = { ...d, id: uuidv4(), nummer, erstelltAm: now, geaendertAm: now };
+    const firma = { ...base.firma };
+    if (typ === 'angebot') firma.nextAngebotNr = nr + 1;
+    else firma.nextRechnungNr = nr + 1;
+    return {
+      data: { ...base, firma, dokumente: [...base.dokumente, dokument] },
+      dokument,
+    };
+  };
+
+  const hatRechnungZuAngebot = (base: AppData, angebotId: string) =>
+    base.dokumente.some(x => x.typ === 'rechnung' && x.quelleAngebotId === angebotId);
 
   // ── Firma ─────────────────────────────────────────────────────────────────
   const updateFirma = async (firma: Firma) => persist({ ...data, firma });
@@ -171,20 +200,45 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const deleteArtikel = async (id: string) => persist({ ...data, artikel: data.artikel.filter(x => x.id !== id) });
 
   // ── Dokumente ─────────────────────────────────────────────────────────────
-  const addDokument = async (d: Omit<Dokument, 'id' | 'nummer' | 'erstelltAm' | 'geaendertAm'>) => {
-    const { typ } = d;
-    const prefix = typ === 'angebot' ? data.firma.angebotPrefix : data.firma.rechnungPrefix;
-    const nr = typ === 'angebot' ? data.firma.nextAngebotNr : data.firma.nextRechnungNr;
-    const nummer = `${prefix}-${new Date().getFullYear()}-${String(nr).padStart(4, '0')}`;
-    const now = new Date().toISOString();
-    const dokument: Dokument = { ...d, id: uuidv4(), nummer, erstelltAm: now, geaendertAm: now };
-    const firma = { ...data.firma };
-    if (typ === 'angebot') firma.nextAngebotNr = nr + 1;
-    else firma.nextRechnungNr = nr + 1;
-    await persist({ ...data, firma, dokumente: [...data.dokumente, dokument] });
+  const addDokument = async (d: Omit<Dokument, 'id' | 'nummer' | 'erstelltAm' | 'geaendertAm'>): Promise<Dokument> => {
+    let next = appendDokument(data, d);
+    const angebotDoc = d.typ === 'angebot' ? next.dokument : null;
+
+    if (
+      angebotDoc &&
+      d.status === 'akzeptiert' &&
+      !hatRechnungZuAngebot(next.data, angebotDoc.id)
+    ) {
+      const merged = appendDokument(next.data, buildRechnungAusAngebot(angebotDoc));
+      next = { data: merged.data, dokument: angebotDoc };
+    }
+
+    await persist(next.data);
+    return next.dokument;
   };
-  const updateDokument = async (d: Dokument) =>
-    persist({ ...data, dokumente: data.dokumente.map(x => x.id === d.id ? { ...d, geaendertAm: new Date().toISOString() } : x) });
+
+  const updateDokument = async (d: Dokument) => {
+    const prev = data.dokumente.find(x => x.id === d.id);
+    const now = new Date().toISOString();
+    const updatedRow = { ...d, geaendertAm: now };
+    let nextData: AppData = {
+      ...data,
+      dokumente: data.dokumente.map(x => x.id === d.id ? updatedRow : x),
+    };
+
+    if (
+      prev?.typ === 'angebot' &&
+      updatedRow.typ === 'angebot' &&
+      updatedRow.status === 'akzeptiert' &&
+      prev.status !== 'akzeptiert' &&
+      !hatRechnungZuAngebot(nextData, updatedRow.id)
+    ) {
+      const chain = appendDokument(nextData, buildRechnungAusAngebot(updatedRow));
+      nextData = chain.data;
+    }
+
+    await persist(nextData);
+  };
   const deleteDokument = async (id: string) => persist({ ...data, dokumente: data.dokumente.filter(x => x.id !== id) });
 
   // ── Projekte ──────────────────────────────────────────────────────────────
@@ -265,6 +319,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await persist({ ...data, eingangsrechnungen: (data.eingangsrechnungen ?? []).filter(x => x.id !== id) });
   };
 
+  const addServiceVertrag = async (v: Omit<ServiceVertrag, 'id' | 'erstelltAm' | 'geaendertAm'>) => {
+    const now = new Date().toISOString();
+    const row: ServiceVertrag = { ...v, id: uuidv4(), erstelltAm: now, geaendertAm: now };
+    await persist({ ...data, serviceVertraege: [...(data.serviceVertraege ?? []), row] });
+  };
+  const updateServiceVertrag = async (v: ServiceVertrag) =>
+    persist({
+      ...data,
+      serviceVertraege: (data.serviceVertraege ?? []).map(x => x.id === v.id ? { ...v, geaendertAm: new Date().toISOString() } : x),
+    });
+  const deleteServiceVertrag = async (id: string) =>
+    persist({ ...data, serviceVertraege: (data.serviceVertraege ?? []).filter(x => x.id !== id) });
+
   // ── Import / Export ───────────────────────────────────────────────────────
   const exportData = () => data;
   const importData = async (imported: AppData) =>
@@ -275,6 +342,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       projekte: imported.projekte ?? [],
       leads: imported.leads ?? [],
       eingangsrechnungen: imported.eingangsrechnungen ?? [],
+      serviceVertraege: imported.serviceVertraege ?? [],
     });
 
   return (
@@ -290,6 +358,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addAnhang, deleteAnhang,
       upsertLead, deleteLead,
       addEingangsrechnung, updateEingangsrechnung, deleteEingangsrechnung,
+      addServiceVertrag, updateServiceVertrag, deleteServiceVertrag,
       exportData, importData,
     }}>
       {children}

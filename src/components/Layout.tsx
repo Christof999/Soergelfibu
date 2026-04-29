@@ -14,6 +14,7 @@ import {
   FolderKanban,
   Telescope,
   Wallet,
+  Handshake,
   Menu,
   X,
 } from 'lucide-react';
@@ -27,6 +28,7 @@ const navItems = [
   { to: '/angebote', label: 'Angebote', icon: FileText },
   { to: '/rechnungen', label: 'Rechnungen', icon: Receipt },
   { to: '/projekte', label: 'Projekte', icon: FolderKanban },
+  { to: '/service', label: 'Service', icon: Handshake },
   { to: '/akquise', label: 'Akquise', icon: Telescope },
   { to: '/fibu', label: 'Fibu', icon: Wallet },
   { to: '/einstellungen', label: 'Einstellungen', icon: Settings },
