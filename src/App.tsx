@@ -11,6 +11,7 @@ import Einstellungen from './pages/Einstellungen';
 import Projekte from './pages/Projekte';
 import ProjektDetail from './pages/ProjektDetail';
 import Akquise from './pages/Akquise';
+import Fibu from './pages/Fibu';
 
 function ProtectedRoutes() {
   const { user, loading } = useAuth();
@@ -43,6 +44,7 @@ function ProtectedRoutes() {
           <Route path="projekte" element={<Projekte />} />
           <Route path="projekte/:id" element={<ProjektDetail />} />
           <Route path="akquise" element={<Akquise />} />
+          <Route path="fibu" element={<Fibu />} />
           <Route path="einstellungen" element={<Einstellungen />} />
         </Route>
       </Routes>
