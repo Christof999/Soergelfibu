@@ -87,6 +87,8 @@ export interface Firma {
   nextAngebotNr: number;
   nextRechnungNr: number;
   terminUrl: string;
+  /** Geschätzte Steuerlast auf Gewinn (%) — nur Dashboard-Hinweis */
+  dashboardSteuerSchaetzungProzent: number;
 }
 
 // ─── Projektmanagement ────────────────────────────────────────────────────────
@@ -160,6 +162,22 @@ export interface Lead {
   analyse: LeadAnalyse | null;
   stern: boolean;
   erstelltAm: string;
+  akquiseEmailZuletztVersendetAm?: string;
+}
+
+/** Eingangsrechnung (Buchhaltung / Fibu) */
+export interface Eingangsrechnung {
+  id: string;
+  lieferant: string;
+  rechnungsnummer: string;
+  /** Bruttobetrag EUR */
+  betragBrutto: number;
+  /** Fälligkeitsdatum ISO yyyy-mm-dd */
+  faelligAm: string;
+  notizen: string;
+  erstelltAm: string;
+  pdfUrl?: string;
+  pdfStoragePath?: string;
 }
 
 export interface AppData {
@@ -169,4 +187,5 @@ export interface AppData {
   dokumente: Dokument[];
   projekte: Projekt[];
   leads: Lead[];
+  eingangsrechnungen: Eingangsrechnung[];
 }
