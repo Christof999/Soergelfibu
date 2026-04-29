@@ -64,6 +64,31 @@ export interface Dokument {
   erstelltAm: string;
   geaendertAm: string;
   betreff: string;
+  /** Gesetzt bei Rechnungen, die aus einem Angebot erzeugt wurden */
+  quelleAngebotId?: string;
+}
+
+export type ServiceVertragIntervall = 'monatlich' | 'quartalsweise' | 'jaehrlich';
+
+export interface ServiceVertrag {
+  id: string;
+  kundeId: string;
+  /** Kurztitel, z. B. „Hosting & Betreuung Website XY“ */
+  titel: string;
+  /** Nettobetrag pro Abrechnungsintervall (siehe intervall) */
+  betragNetto: number;
+  intervall: ServiceVertragIntervall;
+  mwstSatz: number;
+  beginnAm: string;
+  endeAm: string;
+  kuendigungsfristMonate: number;
+  /** Freitext: Leistungen (Hosting, Updates, Support-Stunden …) */
+  leistungen: string;
+  /** Zahlungsweise, SLA-Kurztext, Sonstiges */
+  bedingungen: string;
+  status: 'entwurf' | 'aktiv' | 'gekuendigt' | 'beendet';
+  erstelltAm: string;
+  geaendertAm: string;
 }
 
 export interface Firma {
@@ -188,4 +213,5 @@ export interface AppData {
   projekte: Projekt[];
   leads: Lead[];
   eingangsrechnungen: Eingangsrechnung[];
+  serviceVertraege: ServiceVertrag[];
 }
