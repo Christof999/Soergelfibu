@@ -1,13 +1,31 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { ladeSeiteninhalte } from './analyse-page-fetch';
+import { basisAusUrl, normalisiereWebsiteUrl } from './url-normalize';
 
-function basisUrl(website: string): string {
-  const url = website.startsWith('http') ? website : `https://${website}`;
+function parseGeminiJson(rawText: string): {
+  optimierungen: string[];
+  ansprechpartner: string;
+  zusammenfassung: string;
+  websiteGeladen?: boolean;
+} {
+  const trimmed = rawText.trim();
   try {
-    const u = new URL(url);
-    return `${u.protocol}//${u.host}`;
+    return JSON.parse(trimmed);
   } catch {
-    return url;
+    const match = trimmed.match(/\{[\s\S]*\}/);
+    if (match) {
+      try {
+        return JSON.parse(match[0]);
+      } catch {
+        /* weiter unten Fallback */
+      }
+    }
+    return {
+      optimierungen: ['Analyse konnte nicht ausgewertet werden – die KI-Antwort war kein gültiges JSON.'],
+      ansprechpartner: '',
+      zusammenfassung: trimmed.slice(0, 200) || 'Keine Auswertung möglich.',
+      websiteGeladen: false,
+    };
   }
 }
 
@@ -26,26 +44,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let hauptseite = '';
   let impressum = '';
   let fetchMethode: 'browserbase' | 'http' = 'http';
-  const hatWebsite = !!website?.trim();
+  const hauptUrlNorm = normalisiereWebsiteUrl(website ?? '');
+  const hatWebsite = !!hauptUrlNorm;
 
-  if (hatWebsite) {
-    const basis = basisUrl(website);
-    const hauptUrl = website.startsWith('http') ? website.trim() : `https://${website.trim()}`;
+  if (hatWebsite && hauptUrlNorm) {
+    const basis = basisAusUrl(hauptUrlNorm);
+    if (basis) {
+      const hauptUrl = hauptUrlNorm;
 
-    const impressumKandidaten = [
-      `${basis}/impressum`,
-      `${basis}/impressum.html`,
-      `${basis}/impressum.php`,
-      `${basis}/ueber-uns`,
-      `${basis}/kontakt`,
-      `${basis}/de/impressum`,
-      `${basis}/legal/imprint`,
-    ];
+      const impressumKandidaten = [
+        `${basis}/impressum`,
+        `${basis}/impressum.html`,
+        `${basis}/impressum.php`,
+        `${basis}/ueber-uns`,
+        `${basis}/kontakt`,
+        `${basis}/de/impressum`,
+        `${basis}/legal/imprint`,
+      ];
 
-    const geladen = await ladeSeiteninhalte({ hauptUrl, impressumKandidaten });
-    hauptseite = geladen.startseite;
-    impressum = geladen.impressum;
-    fetchMethode = geladen.methode;
+      const geladen = await ladeSeiteninhalte({ hauptUrl, impressumKandidaten });
+      hauptseite = geladen.startseite;
+      impressum = geladen.impressum;
+      fetchMethode = geladen.methode;
+    }
   }
 
   const hatInhalt = hauptseite.length > 50 || impressum.length > 50;
@@ -59,7 +80,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
 Unternehmen: ${name}
 Branche: ${branche ?? 'Unbekannt'}
-Website: ${website || 'keine Website angegeben'}
+Website: ${hauptUrlNorm ?? website?.trim() || 'keine Website angegeben'}
 
 Technischer Kontext: ${kontextHerkunft}
 
@@ -109,32 +130,32 @@ Antworte ausschließlich als JSON (kein Markdown):
       }
     );
 
-    const geminiData = await geminiRes.json();
+    let geminiData: unknown;
+    try {
+      geminiData = await geminiRes.json();
+    } catch {
+      return res.status(502).json({
+        error: 'Gemini-Antwort war kein gültiges JSON (Netzwerk oder Proxy). Bitte erneut versuchen.',
+      });
+    }
 
     if (!geminiRes.ok) {
-      const errMsg = geminiData?.error?.message ?? JSON.stringify(geminiData);
+      const errMsg =
+        typeof geminiData === 'object' &&
+        geminiData !== null &&
+        'error' in geminiData &&
+        typeof (geminiData as { error?: { message?: string } }).error?.message === 'string'
+          ? (geminiData as { error: { message: string } }).error.message
+          : JSON.stringify(geminiData);
       return res.status(500).json({ error: `Gemini API Fehler: ${errMsg}` });
     }
 
-    const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}';
-
-    let parsed: {
-      optimierungen: string[];
-      ansprechpartner: string;
-      zusammenfassung: string;
-      websiteGeladen?: boolean;
+    const g = geminiData as {
+      candidates?: { content?: { parts?: { text?: string }[] } }[];
     };
-    try {
-      parsed = JSON.parse(rawText);
-    } catch {
-      const match = rawText.match(/\{[\s\S]*\}/);
-      parsed = match ? JSON.parse(match[0]) : {
-        optimierungen: ['Analyse konnte nicht durchgeführt werden.'],
-        ansprechpartner: '',
-        zusammenfassung: rawText.slice(0, 200),
-        websiteGeladen: false,
-      };
-    }
+    const rawText = g.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}';
+
+    const parsed = parseGeminiJson(rawText);
 
     return res.status(200).json({
       optimierungen: parsed.optimierungen?.slice(0, 3) ?? [],
