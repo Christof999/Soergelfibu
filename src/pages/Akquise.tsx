@@ -11,6 +11,7 @@ import { Lead, LeadAnalyse } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
+import { readApiJson } from '../utils/readApiJson';
 
 // ─── Hilfsfunktionen ─────────────────────────────────────────────────────────
 
@@ -192,9 +193,17 @@ export default function Akquise() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: query.trim(), plz, radius: parseInt(radius) * 1000 }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Unbekannter Fehler');
-      const leads: Lead[] = (data.ergebnisse ?? []).map((e: Omit<Lead, 'id' | 'analyse' | 'stern' | 'erstelltAm'>) => ({
+      const parsed = await readApiJson<{ error?: string; ergebnisse?: Omit<Lead, 'id' | 'analyse' | 'stern' | 'erstelltAm'>[] }>(
+        res,
+      );
+      if (parsed.jsonError) {
+        throw new Error(
+          `Unerwartete Server-Antwort (${res.status}). Ist die API unter /api/akquise erreichbar?`,
+        );
+      }
+      const body = parsed.data!;
+      if (!res.ok) throw new Error(body.error ?? 'Unbekannter Fehler');
+      const leads: Lead[] = (body.ergebnisse ?? []).map(e => ({
         ...e,
         id: uuidv4(),
         analyse: null,
@@ -235,9 +244,21 @@ export default function Akquise() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ website: lead.website, name: lead.name, branche: lead.branche }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Analyse fehlgeschlagen');
-      const analyse: LeadAnalyse = data;
+      const parsed = await readApiJson<{ error?: string } & LeadAnalyse>(res);
+      if (parsed.jsonError) {
+        throw new Error(
+          `Die Analyse-API lieferte keine gültigen Daten (${res.status}). ${parsed.rawText.slice(0, 160)}`,
+        );
+      }
+      const body = parsed.data!;
+      if (!res.ok) throw new Error(body.error ?? 'Analyse fehlgeschlagen');
+      const analyse: LeadAnalyse = {
+        optimierungen: Array.isArray(body.optimierungen) ? body.optimierungen.map(String) : [],
+        ansprechpartner: typeof body.ansprechpartner === 'string' ? body.ansprechpartner : '',
+        zusammenfassung: typeof body.zusammenfassung === 'string' ? body.zusammenfassung : '',
+        websiteGeladen: typeof body.websiteGeladen === 'boolean' ? body.websiteGeladen : false,
+        analysiertAm: typeof body.analysiertAm === 'string' ? body.analysiertAm : new Date().toISOString(),
+      };
       const updated = { ...lead, analyse };
       setSuchergebnisse(prev => prev.map(l => l.id === lead.id ? updated : l));
       if (isFromPotentiell || lead.stern) await upsertLead(updated);
