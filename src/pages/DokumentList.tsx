@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Pencil, Trash2, Download, Search, FileText, Receipt, Copy, FolderPlus } from 'lucide-react';
+import { Plus, Pencil, Trash2, Download, Search, FileText, Receipt, Copy, FolderPlus, ArrowRightCircle } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -10,6 +10,7 @@ import { useApp } from '../context/AppContext';
 import { Dokument, DokumentTyp } from '../types';
 import { berechneGesamtsummen, fmtEur } from '../utils/berechnungen';
 import { generatePDF } from '../utils/pdf';
+import { buildRechnungAusAngebot } from '../utils/rechnungAusAngebot';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 
@@ -41,8 +42,17 @@ export default function DokumentList({ typ }: Props) {
   const openEdit = (d: Dokument) => { setEditDoc(d); setModalOpen(true); };
 
   const handleSave = async (payload: Omit<Dokument, 'id' | 'nummer' | 'erstelltAm' | 'geaendertAm'> | Dokument) => {
+    const wasAngebot = editDoc?.typ === 'angebot';
+    const prevStatus = editDoc?.status;
     if ('id' in payload && payload.id) {
       await updateDokument(payload as Dokument);
+      if (
+        wasAngebot &&
+        (payload as Dokument).status === 'akzeptiert' &&
+        prevStatus !== 'akzeptiert'
+      ) {
+        alert('Status „Akzeptiert“ gespeichert. Es wurde automatisch eine Rechnung erstellt — unter Rechnungen.');
+      }
     } else {
       await addDokument(payload as Omit<Dokument, 'id' | 'nummer' | 'erstelltAm' | 'geaendertAm'>);
     }
@@ -67,6 +77,19 @@ export default function DokumentList({ typ }: Props) {
       kommunikation: [],
     });
     navigate(`/projekte/${proj.id}`);
+  };
+
+  const findRechnungAusAngebot = (angebotId: string) =>
+    data.dokumente.find(d => d.typ === 'rechnung' && d.quelleAngebotId === angebotId);
+
+  const handleRechnungAusAngebot = async (angebot: Dokument) => {
+    if (angebot.typ !== 'angebot') return;
+    if (findRechnungAusAngebot(angebot.id)) {
+      alert('Zu diesem Angebot existiert bereits eine Rechnung.');
+      return;
+    }
+    await addDokument(buildRechnungAusAngebot(angebot));
+    navigate('/rechnungen');
   };
 
   const handleDuplicate = async (doc: Dokument) => {
@@ -139,6 +162,8 @@ export default function DokumentList({ typ }: Props) {
                 {filtered.map(doc => {
                   const kunde = data.kunden.find(k => k.id === doc.kundeId);
                   const { brutto } = berechneGesamtsummen(doc.positionen, ku);
+                  const hatRechnung =
+                    typ === 'angebot' && !!findRechnungAusAngebot(doc.id);
                   return (
                     <tr key={doc.id} className="hover:bg-dark-700/50 transition-colors">
                       <td className="px-5 py-3 font-mono text-xs text-gray-400 font-medium">{doc.nummer}</td>
@@ -158,14 +183,34 @@ export default function DokumentList({ typ }: Props) {
                             <Copy size={14} />
                           </button>
                           {typ === 'angebot' && (
-                            <button onClick={() => handleProjektErstellen(doc)} title="Projekt erstellen" className="p-1.5 rounded-lg text-gray-500 hover:text-emerald-400 hover:bg-emerald-900/30 transition-colors">
-                              <FolderPlus size={14} />
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => void handleRechnungAusAngebot(doc)}
+                                title={hatRechnung ? 'Rechnung existiert bereits' : 'Rechnung aus Angebot'}
+                                disabled={hatRechnung}
+                                className={`p-1.5 rounded-lg transition-colors ${
+                                  hatRechnung
+                                    ? 'text-gray-700 cursor-not-allowed'
+                                    : 'text-gray-500 hover:text-amber-400 hover:bg-amber-900/30'
+                                }`}
+                              >
+                                <ArrowRightCircle size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleProjektErstellen(doc)}
+                                title="Projekt erstellen"
+                                className="p-1.5 rounded-lg text-gray-500 hover:text-emerald-400 hover:bg-emerald-900/30 transition-colors"
+                              >
+                                <FolderPlus size={14} />
+                              </button>
+                            </>
                           )}
-                          <button onClick={() => openEdit(doc)} className="p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors">
+                          <button type="button" onClick={() => openEdit(doc)} className="p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors">
                             <Pencil size={14} />
                           </button>
-                          <button onClick={() => setDeleteId(doc.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors">
+                          <button type="button" onClick={() => setDeleteId(doc.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors">
                             <Trash2 size={14} />
                           </button>
                         </div>

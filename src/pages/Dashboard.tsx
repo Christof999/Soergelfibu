@@ -1,14 +1,27 @@
 import { useApp } from '../context/AppContext';
 import { fmtEur, berechneGesamtsummen } from '../utils/berechnungen';
 import { Link } from 'react-router-dom';
-import { Users, Package, FileText, Receipt, TrendingUp, Clock, CheckCircle, AlertCircle } from 'lucide-react';
+import {
+  Users,
+  Package,
+  FileText,
+  Receipt,
+  TrendingUp,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+  Wallet,
+  PiggyBank,
+  Landmark,
+} from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 
 export default function Dashboard() {
   const { data } = useApp();
   const ku = !!data.firma.kleinunternehmerRegelung;
-  const { kunden, artikel, dokumente } = data;
+  const { kunden, artikel, dokumente, firma } = data;
+  const eingangsrechnungen = data.eingangsrechnungen ?? [];
 
   const angebote = dokumente.filter(d => d.typ === 'angebot');
   const rechnungen = dokumente.filter(d => d.typ === 'rechnung');
@@ -16,6 +29,12 @@ export default function Dashboard() {
   const bezahlteRechnungen = rechnungen.filter(d => d.status === 'bezahlt');
   const umsatz = bezahlteRechnungen.reduce((sum, d) => sum + berechneGesamtsummen(d.positionen, ku).brutto, 0);
   const offen = offeneRechnungen.reduce((sum, d) => sum + berechneGesamtsummen(d.positionen, ku).brutto, 0);
+
+  const ausgabenBrutto = eingangsrechnungen.reduce((sum, e) => sum + e.betragBrutto, 0);
+  const gewinn = umsatz - ausgabenBrutto;
+  const steuerPct = firma.dashboardSteuerSchaetzungProzent ?? 30;
+  const geschaetzteSteuer = gewinn > 0 ? gewinn * (steuerPct / 100) : 0;
+  const gewinnNachSteuer = gewinn - geschaetzteSteuer;
 
   const recentDocs = [...dokumente]
     .sort((a, b) => new Date(b.erstelltAm).getTime() - new Date(a.erstelltAm).getTime())
@@ -36,7 +55,7 @@ export default function Dashboard() {
       </div>
 
       {/* KPI-Karten */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         <div className="bg-dark-800 rounded-2xl p-5 border border-dark-700">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-emerald-900/50 flex items-center justify-center">
@@ -56,6 +75,48 @@ export default function Dashboard() {
             <div>
               <p className="text-sm text-gray-500">Offene Rechnungen</p>
               <p className="text-xl font-bold text-gray-100">{fmtEur(offen)}</p>
+            </div>
+          </div>
+        </div>
+        <Link
+          to="/fibu"
+          className="bg-dark-800 rounded-2xl p-5 border border-dark-700 hover:border-dark-600 transition-colors block"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-rose-900/50 flex items-center justify-center">
+              <Wallet size={20} className="text-rose-300" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Ausgaben (Fibu)</p>
+              <p className="text-xl font-bold text-gray-100">{fmtEur(ausgabenBrutto)}</p>
+              <p className="text-xs text-gray-600 mt-1">{eingangsrechnungen.length} Belege · Fibu öffnen</p>
+            </div>
+          </div>
+        </Link>
+        <div className="bg-dark-800 rounded-2xl p-5 border border-dark-700 sm:col-span-2 xl:col-span-1">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-sky-900/50 flex items-center justify-center">
+              <PiggyBank size={20} className="text-sky-300" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Gewinn (Umsatz − Ausgaben)</p>
+              <p className="text-xl font-bold text-gray-100">{fmtEur(gewinn)}</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-dark-800 rounded-2xl p-5 border border-dark-700 sm:col-span-2 xl:col-span-3">
+          <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-900/50 flex items-center justify-center shrink-0">
+              <Landmark size={20} className="text-indigo-300" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm text-gray-500">Gewinn nach geschätzter Steuer ({steuerPct}% auf Gewinn)</p>
+              <p className="text-xl font-bold text-gray-100">{fmtEur(gewinnNachSteuer)}</p>
+              <p className="text-xs text-gray-600 mt-2 leading-relaxed">
+                {gewinn <= 0
+                  ? 'Bei Verlust oder ausgeglichen ist die geschätzte Steuerlast hier 0 € (keine zusätzliche „Erstattung“ im Dashboard).'
+                  : `Geschätzte Steuer auf den Gewinn: ${fmtEur(geschaetzteSteuer)}. Nur eine grobe Orientierung — Steuersatz in den Einstellungen anpassbar.`}
+              </p>
             </div>
           </div>
         </div>

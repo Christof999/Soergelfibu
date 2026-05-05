@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Dokument, Firma, Kunde } from '../types';
+import { Dokument, Firma, Kunde, ServiceVertrag } from '../types';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { berechneGesamtsummen } from './berechnungen';
@@ -239,4 +239,148 @@ export function generatePDF(dokument: Dokument, firma: Firma, kunde: Kunde) {
   );
 
   doc.save(`${dokument.nummer}.pdf`);
+}
+
+const INTERVALL_LABEL: Record<string, string> = {
+  monatlich: 'monatlich',
+  quartalsweise: 'quartalsweise',
+  jaehrlich: 'jährlich',
+};
+
+export function generateServicevertragPDF(
+  vertrag: ServiceVertrag,
+  firma: Firma,
+  kunde: Kunde,
+) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const margin = 20;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.setTextColor(...ANTHRAZIT);
+  doc.text('Servicevereinbarung – Zusammenfassung', margin, 22);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(80, 80, 80);
+  const firmaInfo = [
+    firma.name,
+    firma.strasse,
+    `${firma.plz} ${firma.ort}`,
+    `Tel: ${firma.telefon}`,
+    `E-Mail: ${firma.email}`,
+  ].filter(Boolean);
+  doc.text(firmaInfo, pageWidth - margin, 14, { align: 'right' });
+
+  doc.setDrawColor(...ANTHRAZIT_LIGHT);
+  doc.setLineWidth(0.4);
+  doc.line(margin, 30, pageWidth - margin, 30);
+
+  let y = 40;
+  doc.setFontSize(10);
+  doc.setTextColor(30, 30, 30);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Auftragnehmer', margin, y);
+  doc.text('Auftraggeber', pageWidth / 2 + 5, y);
+  y += 6;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.text([firma.name, firma.strasse, `${firma.plz} ${firma.ort}`].filter(Boolean), margin, y);
+  const kundeBlock = [
+    kunde.firma || kunde.ansprechpartner,
+    kunde.ansprechpartner,
+    kunde.strasse,
+    `${kunde.plz} ${kunde.ort}`,
+  ].filter(Boolean);
+  doc.text(kundeBlock, pageWidth / 2 + 5, y);
+
+  y = 58;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text(vertrag.titel, margin, y);
+  y += 8;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  const intervallText = INTERVALL_LABEL[vertrag.intervall] ?? vertrag.intervall;
+  const nettoStr = vertrag.betragNetto.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+  const bruttoProIntervall = vertrag.betragNetto * (1 + vertrag.mwstSatz / 100);
+  const bruttoStr = bruttoProIntervall.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+
+  const rows: [string, string][] = [
+    ['Vertragsbeginn', fmtDate(vertrag.beginnAm)],
+    ['Vertragsende', fmtDate(vertrag.endeAm)],
+    ['Abrechnung', intervallText],
+    ['Nettobetrag je Abrechnungszeitraum', nettoStr],
+    ['MwSt.-Satz', `${vertrag.mwstSatz}% (Brutto je Zeitraum ca. ${bruttoStr})`],
+    ['Kündigungsfrist', `${vertrag.kuendigungsfristMonate} Monate zum Monatsende / wie vereinbart`],
+    ['Stand / Status', vertrag.status],
+  ];
+
+  rows.forEach(([label, val]) => {
+    doc.setFont('helvetica', 'bold');
+    doc.text(label + ':', margin, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text(val, margin + 62, y);
+    y += 6;
+  });
+
+  y += 4;
+  doc.setFont('helvetica', 'bold');
+  doc.text('Leistungen', margin, y);
+  y += 5;
+  doc.setFont('helvetica', 'normal');
+  const leistSplit = doc.splitTextToSize(vertrag.leistungen || '–', pageWidth - 2 * margin);
+  doc.text(leistSplit, margin, y);
+  y += leistSplit.length * 5 + 6;
+
+  if (y > pageHeight - 70) {
+    doc.addPage();
+    y = margin;
+  }
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Weitere Bedingungen / Zahlung', margin, y);
+  y += 5;
+  doc.setFont('helvetica', 'normal');
+  const bedSplit = doc.splitTextToSize(vertrag.bedingungen || '–', pageWidth - 2 * margin);
+  doc.text(bedSplit, margin, y);
+  y += bedSplit.length * 5 + 12;
+
+  doc.setFontSize(8.5);
+  doc.setTextColor(90, 90, 90);
+  const hinweis =
+    'Diese Zusammenfassung dient der Übersicht und der Einwilligung in die wesentlichen Eckdaten. Rechtsverbindliche Ausgestaltung erfolgt im Rahmen der zwischen den Parteien vereinbarten oder beigefügten AGB / Individualvereinbarung.';
+  const hinweisSplit = doc.splitTextToSize(hinweis, pageWidth - 2 * margin);
+  doc.text(hinweisSplit, margin, y);
+  y += hinweisSplit.length * 4 + 14;
+
+  if (y > pageHeight - 55) {
+    doc.addPage();
+    y = margin;
+  }
+
+  doc.setDrawColor(...ANTHRAZIT_LIGHT);
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 10;
+
+  doc.setFontSize(9);
+  doc.setTextColor(40, 40, 40);
+  doc.text(`Ort, Datum: _________________________`, margin, y);
+  y += 14;
+  doc.text(`Unterschrift Auftraggeber (${kunde.firma || kunde.ansprechpartner})`, margin, y);
+  y += 10;
+  doc.line(margin, y + 2, pageWidth / 2 - 10, y + 2);
+  y += 18;
+  doc.text(`Unterschrift Auftragnehmer (${firma.name})`, margin, y);
+  y += 10;
+  doc.line(margin, y + 2, pageWidth / 2 - 10, y + 2);
+
+  doc.setFontSize(8);
+  doc.setTextColor(150, 150, 150);
+  doc.text(`${firma.name} · ${firma.website}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+
+  doc.save(`Servicevereinbarung-${vertrag.titel.replace(/[^\wäöüÄÖÜß\- ]/gi, '').slice(0, 40) || vertrag.id}.pdf`);
 }
