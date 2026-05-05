@@ -30,6 +30,7 @@ const defaultFirma: Firma = {
   nextAngebotNr: 1,
   nextRechnungNr: 1,
   terminUrl: 'https://cal.com/',
+  kleinunternehmerRegelung: false,
 };
 
 const emptyData: AppData = {
@@ -123,7 +124,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const unsub = onSnapshot(userDocRef, (snap) => {
       if (snap.exists()) {
         const d = snap.data() as AppData;
-        setData({ ...emptyData, ...d, projekte: d.projekte ?? [], leads: d.leads ?? [] });
+        setData({
+          ...emptyData,
+          ...d,
+          firma: { ...emptyData.firma, ...d.firma, kleinunternehmerRegelung: !!(d.firma as Firma | undefined)?.kleinunternehmerRegelung },
+          projekte: d.projekte ?? [],
+          leads: d.leads ?? [],
+        });
       } else {
         setDoc(userDocRef, sanitize(emptyData));
       }
@@ -228,7 +235,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Import / Export ───────────────────────────────────────────────────────
   const exportData = () => data;
-  const importData = async (imported: AppData) => persist(imported);
+  const importData = async (imported: AppData) =>
+    persist({
+      ...emptyData,
+      ...imported,
+      firma: { ...emptyData.firma, ...imported.firma },
+    });
 
   return (
     <AppContext.Provider value={{
