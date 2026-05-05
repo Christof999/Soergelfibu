@@ -1,33 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-
-async function fetchSeite(url: string, timeoutMs = 8000): Promise<string> {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, {
-      signal: ctrl.signal,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'de-DE,de;q=0.9',
-        'Accept-Encoding': 'gzip, deflate, br',
-      },
-    });
-    clearTimeout(t);
-    if (!res.ok) return '';
-    const html = await res.text();
-    return html
-      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-      .replace(/<!--[\s\S]*?-->/g, '')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-  } catch {
-    clearTimeout(t);
-    return '';
-  }
-}
+import { ladeSeiteninhalte } from './analyse-page-fetch';
 
 function basisUrl(website: string): string {
   const url = website.startsWith('http') ? website : `https://${website}`;
@@ -51,70 +23,72 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const GEMINI_KEY = process.env.GEMINI_API_KEY;
   if (!GEMINI_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY nicht konfiguriert' });
 
-  // Hauptseite + Impressum parallel laden
   let hauptseite = '';
   let impressum = '';
-  const hatWebsite = !!website;
+  let fetchMethode: 'browserbase' | 'http' = 'http';
+  const hatWebsite = !!website?.trim();
 
   if (hatWebsite) {
     const basis = basisUrl(website);
-    const hauptUrl = website.startsWith('http') ? website : `https://${website}`;
+    const hauptUrl = website.startsWith('http') ? website.trim() : `https://${website.trim()}`;
 
-    // Impressum-Kandidaten (häufige deutsche URLs)
     const impressumKandidaten = [
       `${basis}/impressum`,
       `${basis}/impressum.html`,
       `${basis}/impressum.php`,
       `${basis}/ueber-uns`,
       `${basis}/kontakt`,
+      `${basis}/de/impressum`,
+      `${basis}/legal/imprint`,
     ];
 
-    [hauptseite, ...([impressum] = await Promise.all([
-      fetchSeite(hauptUrl),
-      // Ersten erfolgreichen Impressum-Kandidaten verwenden
-      (async () => {
-        for (const u of impressumKandidaten) {
-          const text = await fetchSeite(u, 5000);
-          if (text.length > 100) return text;
-        }
-        return '';
-      })(),
-    ]))] ;
-
-    hauptseite = hauptseite.slice(0, 4000);
-    impressum = impressum.slice(0, 2000);
+    const geladen = await ladeSeiteninhalte({ hauptUrl, impressumKandidaten });
+    hauptseite = geladen.startseite;
+    impressum = geladen.impressum;
+    fetchMethode = geladen.methode;
   }
 
   const hatInhalt = hauptseite.length > 50 || impressum.length > 50;
 
-  const prompt = `Du bist ein Experte für digitales Marketing und Webdesign. Analysiere folgendes Unternehmen.
+  const kontextHerkunft =
+    fetchMethode === 'browserbase'
+      ? 'Der Seiteninhalt wurde mit einem echten Browser geladen (sichtbarer Text wie für Nutzer).'
+      : 'Der Seiteninhalt wurde per HTTP abgerufen (ohne JavaScript; dynamische Inhalte können fehlen).';
+
+  const prompt = `Du bist ein erfahrener SEO- und Webdesign-Spezialist UND denkst gleichzeitig aus Sicht eines typischen Webseitenbesuchers (Handwerk/B2B).
 
 Unternehmen: ${name}
 Branche: ${branche ?? 'Unbekannt'}
 Website: ${website || 'keine Website angegeben'}
 
-=== INHALT DER STARTSEITE (automatisch abgerufen) ===
-${hauptseite || 'Konnte nicht geladen werden (z.B. Bot-Schutz oder Timeout)'}
+Technischer Kontext: ${kontextHerkunft}
 
-=== IMPRESSUM / KONTAKT (automatisch abgerufen) ===
-${impressum || 'Nicht gefunden'}
+=== INHALT DER STARTSEITE ===
+${hauptseite || '(Leer oder nicht erreichbar)'}
 
-WICHTIGE REGELN – halte dich STRIKT daran:
-1. Erfinde KEINE Fakten. Wenn etwas nicht aus dem Seiteninhalt hervorgeht, schreib es NICHT.
-2. Ansprechpartner: Nur angeben wenn ein konkreter Name im Impressum steht. Sonst leerer String "".
-3. Responsivität/Design: Beurteile NUR was aus dem Text erkennbar ist. Mache KEINE Annahmen über das visuelle Design.
-4. Wenn die Website nicht geladen werden konnte, analysiere nur anhand des Unternehmensnamens und der Branche.
-5. Optimierungen sollen KONKRET und UMSETZBAR sein, nicht generisch.
+=== IMPRESSUM / KONTAKT (falls gefunden) ===
+${impressum || '(Nicht gefunden)'}
 
-Antworte ausschließlich als JSON (kein Markdown, kein Text drumherum):
+AUFGABE – zwei kurze Perspektiven in den drei Optimierungspunkten verbinden:
+- Nutzenperspektive: Was wirkt für einen Besucher unklar, unnötig hürdenreich oder wenig vertrauensbildend – soweit aus dem Text ableitbar?
+- Fachperspektive: Was wäre aus SEO/UX/Webdesign-Sicht der nächste sinnvolle Schritt – ohne Fantasie-Zahlen?
+
+STRENGE REGELN:
+1. Erfinde keine Fakten. Nur was sich aus dem Text ableiten lässt.
+2. Ansprechpartner nur wenn explizit im Impressum/Kontakt-Text genannt, sonst "".
+3. Keine konkreten Behauptungen zu „mobiler Ansicht“, „Ladezeit“ oder „Farben“, wenn der gelieferte Text dazu nichts hergibt (bei reinem Textabruf oft nicht belegbar).
+4. Wenn kaum Inhalt vorliegt, formuliere allgemeinere aber noch immer sinnvolle Punkte zur Digitalpräsenz und verweise darauf, dass eine tiefergehende Prüfung der Live-Seite sinnvoll ist – ohne zu behaupten, du hättest sie gesehen.
+5. Formuliere die drei Optimierungen als klare Empfehlungen (Du/Sie-Kontext zum Unternehmen).
+
+Antworte ausschließlich als JSON (kein Markdown):
 {
   "optimierungen": [
     "Optimierung 1 – konkret und auf dieses Unternehmen bezogen (1-2 Sätze)",
     "Optimierung 2 – konkret und auf dieses Unternehmen bezogen (1-2 Sätze)",
     "Optimierung 3 – konkret und auf dieses Unternehmen bezogen (1-2 Sätze)"
   ],
-  "ansprechpartner": "Vollständiger Name aus dem Impressum oder leerer String",
-  "zusammenfassung": "Was macht das Unternehmen und warum ist es als Lead interessant? (1-2 Sätze, nur belegte Fakten)",
+  "ansprechpartner": "Name aus Impressum oder leerer String",
+  "zusammenfassung": "Was macht das Unternehmen und warum Lead-interessant (1-2 Sätze, nur Belegtes)",
   "websiteGeladen": ${hatInhalt}
 }`;
 
@@ -168,6 +142,8 @@ Antworte ausschließlich als JSON (kein Markdown, kein Text drumherum):
       zusammenfassung: parsed.zusammenfassung ?? '',
       websiteGeladen: hatInhalt,
       analysiertAm: new Date().toISOString(),
+      /** Debug: wie die Seiten geladen wurden */
+      seitenabrufMethode: fetchMethode,
     });
   } catch (err) {
     console.error(err);
