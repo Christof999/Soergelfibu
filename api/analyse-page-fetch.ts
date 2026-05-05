@@ -1,9 +1,12 @@
 /**
  * Seitenabruf für Akquise-KI: Browserbase (echter Browser) mit Fallback auf HTTP-fetch.
+ *
+ * Wichtig: Playwright und Browserbase werden nur dynamisch importiert (`import()`),
+ * damit die Serverless-Funktion ohne diese Pakete startet, wenn nur HTTP-Fallback
+ * genutzt wird oder native Module auf der Edge-Umgebung fehlschlagen.
  */
 
-import Browserbase from '@browserbasehq/sdk';
-import { chromium, type Browser, type Page } from 'playwright-core';
+import type { Browser } from 'playwright-core';
 
 function htmlZuKlartext(html: string): string {
   return html
@@ -40,7 +43,7 @@ export async function fetchSeiteHttp(url: string, timeoutMs = 12000): Promise<st
   }
 }
 
-async function extrahiereSichtbarText(page: Page): Promise<string> {
+async function extrahiereSichtbarText(page: { evaluate: (fn: () => string) => Promise<string> }): Promise<string> {
   return page.evaluate(() => {
     try {
       const body = document.body;
@@ -52,7 +55,14 @@ async function extrahiereSichtbarText(page: Page): Promise<string> {
   });
 }
 
-async function gotoUndText(page: Page, url: string, timeoutMs: number): Promise<string> {
+async function gotoUndText(
+  page: {
+    goto: (url: string, opts: object) => Promise<unknown>;
+    evaluate: (fn: () => string) => Promise<string>;
+  },
+  url: string,
+  timeoutMs: number,
+): Promise<string> {
   await page.goto(url, {
     waitUntil: 'domcontentloaded',
     timeout: timeoutMs,
@@ -78,11 +88,17 @@ async function ladePerBrowserbase(hauptUrl: string, impressumKandidaten: string[
   const apiKey = process.env.BROWSERBASE_API_KEY?.trim();
   if (!apiKey) return null;
 
-  const projectId = process.env.BROWSERBASE_PROJECT_ID?.trim();
-  const bb = new Browserbase({ apiKey });
   let browser: Browser | undefined;
 
   try {
+    const [{ default: Browserbase }, { chromium }] = await Promise.all([
+      import('@browserbasehq/sdk'),
+      import('playwright-core'),
+    ]);
+
+    const projectId = process.env.BROWSERBASE_PROJECT_ID?.trim();
+    const bb = new Browserbase({ apiKey });
+
     const session = await bb.sessions.create({
       ...(projectId ? { projectId } : {}),
       timeout: 360,
