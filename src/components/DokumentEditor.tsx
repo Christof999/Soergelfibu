@@ -33,12 +33,14 @@ function PositionRow({
   pos,
   idx,
   artikel,
+  kleinunternehmer,
   onChange,
   onDelete,
 }: {
   pos: Dokumentposition;
   idx: number;
   artikel: Artikel[];
+  kleinunternehmer: boolean;
   onChange: (pos: Dokumentposition) => void;
   onDelete: () => void;
 }) {
@@ -107,7 +109,11 @@ function PositionRow({
                   className="w-full text-left px-3 py-2.5 hover:bg-dark-700 transition-colors border-b border-dark-700/50 last:border-0"
                 >
                   <p className="text-xs font-medium text-gray-200">{a.bezeichnung}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{fmtEur(a.preis)} netto · {a.einheit} · {a.mwstSatz}% MwSt.</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {kleinunternehmer
+                      ? `${fmtEur(a.preis)} Endbetrag · ${a.einheit}`
+                      : `${fmtEur(a.preis)} netto · ${a.einheit} · ${a.mwstSatz}% MwSt.`}
+                  </p>
                 </button>
               ))}
             </div>
@@ -148,7 +154,9 @@ function PositionRow({
           />
         </div>
         <div className="flex flex-col gap-0.5 flex-1">
-          <span className="text-xs text-gray-500">Einzelpreis (€)</span>
+          <span className="text-xs text-gray-500">
+            {kleinunternehmer ? 'Einzelpreis (Endbetrag)' : 'Einzelpreis (€)'}
+          </span>
           <input
             type="number" min="0" step="0.01"
             value={pos.einzelpreis}
@@ -158,15 +166,21 @@ function PositionRow({
         </div>
         <div className="flex flex-col gap-0.5 w-16">
           <span className="text-xs text-gray-500">MwSt.</span>
-          <select
-            value={pos.mwstSatz}
-            onChange={e => onChange({ ...pos, mwstSatz: parseInt(e.target.value) })}
-            className={cellInput}
-          >
-            <option value={19}>19%</option>
-            <option value={7}>7%</option>
-            <option value={0}>0%</option>
-          </select>
+          {kleinunternehmer ? (
+            <div className={`${cellInput} text-gray-500 text-center py-1.5`} title="Keine gesonderte Umsatzsteuerausweisung">
+              –
+            </div>
+          ) : (
+            <select
+              value={pos.mwstSatz}
+              onChange={e => onChange({ ...pos, mwstSatz: parseInt(e.target.value) })}
+              className={cellInput}
+            >
+              <option value={19}>19%</option>
+              <option value={7}>7%</option>
+              <option value={0}>0%</option>
+            </select>
+          )}
         </div>
         <div className="flex flex-col gap-0.5 w-16">
           <span className="text-xs text-gray-500">Rabatt%</span>
@@ -178,7 +192,7 @@ function PositionRow({
           />
         </div>
         <div className="flex flex-col gap-0.5 text-right shrink-0">
-          <span className="text-xs text-gray-500">Gesamt</span>
+          <span className="text-xs text-gray-500">{kleinunternehmer ? 'Betrag' : 'Gesamt (netto)'}</span>
           <span className="text-xs font-semibold text-gray-200 py-1.5">{fmtEur(netto)}</span>
         </div>
       </div>
@@ -188,6 +202,7 @@ function PositionRow({
 
 export default function DokumentEditor({ typ, initial, onSave, onCancel }: Props) {
   const { data } = useApp();
+  const ku = !!data.firma.kleinunternehmerRegelung;
   const typLabel = typ === 'angebot' ? 'Angebot' : 'Rechnung';
   const today = format(new Date(), 'yyyy-MM-dd');
 
@@ -215,7 +230,7 @@ export default function DokumentEditor({ typ, initial, onSave, onCancel }: Props
       { id: uuidv4(), artikelId: '', bezeichnung: '', beschreibung: '', menge: 1, einheit: 'Stück', einzelpreis: 0, mwstSatz: 19, rabatt: 0 },
     ]);
 
-  const { netto, mwstBetrag, brutto } = berechneGesamtsummen(positionen);
+  const { netto, mwstBetrag, brutto } = berechneGesamtsummen(positionen, ku);
 
   const onSubmit = (formData: DokumentForm) => {
     const payload = { ...formData, typ, positionen };
@@ -305,6 +320,7 @@ export default function DokumentEditor({ typ, initial, onSave, onCancel }: Props
                 pos={pos}
                 idx={idx}
                 artikel={data.artikel}
+                kleinunternehmer={ku}
                 onChange={updated => setPositionen(prev => prev.map(p => p.id === pos.id ? updated : p))}
                 onDelete={() => setPositionen(prev => prev.filter(p => p.id !== pos.id))}
               />
@@ -317,15 +333,24 @@ export default function DokumentEditor({ typ, initial, onSave, onCancel }: Props
           <div className="flex justify-end mt-3">
             <div className="w-56 space-y-1 text-sm">
               <div className="flex justify-between text-gray-400">
-                <span>Netto:</span><span>{fmtEur(netto)}</span>
+                <span>{ku ? 'Zwischensumme:' : 'Netto:'}</span>
+                <span>{fmtEur(netto)}</span>
               </div>
-              <div className="flex justify-between text-gray-400">
-                <span>MwSt.:</span><span>{fmtEur(mwstBetrag)}</span>
-              </div>
+              {!ku && (
+                <div className="flex justify-between text-gray-400">
+                  <span>MwSt.:</span>
+                  <span>{fmtEur(mwstBetrag)}</span>
+                </div>
+              )}
               <div className="flex justify-between font-bold text-gray-100 border-t border-dark-700 pt-1">
-                <span>Gesamt (brutto):</span>
+                <span>{ku ? 'Gesamtbetrag:' : 'Gesamt (brutto):'}</span>
                 <span className="text-primary-400">{fmtEur(brutto)}</span>
               </div>
+              {ku && (
+                <p className="text-[10px] text-gray-600 leading-snug pt-1">
+                  Kleinunternehmerregelung § 19 UStG — ohne Umsatzsteuerausweis.
+                </p>
+              )}
             </div>
           </div>
         )}
