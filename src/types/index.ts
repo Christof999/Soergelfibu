@@ -167,8 +167,14 @@ export interface Projekt {
 
 // ─── Akquise-Tool ─────────────────────────────────────────────────────────────
 
+export interface OptimierungPunkt {
+  titel: string;
+  empfehlung: string;
+}
+
 export interface LeadAnalyse {
-  optimierungen: string[];
+  /** KI liefert strukturierte Punkte; ältere Daten können reine Strings sein */
+  optimierungen: (string | OptimierungPunkt)[];
   ansprechpartner: string;
   zusammenfassung: string;
   websiteGeladen: boolean;

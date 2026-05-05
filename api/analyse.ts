@@ -2,20 +2,22 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { ladeSeiteninhalte } from './analyse-page-fetch';
 import { basisAusUrl, normalisiereWebsiteUrl } from './url-normalize';
 
-function parseGeminiJson(rawText: string): {
-  optimierungen: string[];
-  ansprechpartner: string;
-  zusammenfassung: string;
+interface GeminiParsed {
+  optimierungen?: unknown[];
+  ansprechpartner?: string;
+  zusammenfassung?: string;
   websiteGeladen?: boolean;
-} {
+}
+
+function parseGeminiJson(rawText: string): GeminiParsed {
   const trimmed = rawText.trim();
   try {
-    return JSON.parse(trimmed);
+    return JSON.parse(trimmed) as GeminiParsed;
   } catch {
     const match = trimmed.match(/\{[\s\S]*\}/);
     if (match) {
       try {
-        return JSON.parse(match[0]);
+        return JSON.parse(match[0]) as GeminiParsed;
       } catch {
         /* weiter unten Fallback */
       }
@@ -27,6 +29,20 @@ function parseGeminiJson(rawText: string): {
       websiteGeladen: false,
     };
   }
+}
+
+/** Gemini JSON → einheitliche Optimierungen (String oder { titel, empfehlung }) */
+function optimierungenAusAntwort(raw: unknown[]): (string | { titel: string; empfehlung: string })[] {
+  return raw.slice(0, 3).map(item => {
+    if (item && typeof item === 'object' && item !== null && ('empfehlung' in item || 'titel' in item)) {
+      const o = item as { titel?: string; empfehlung?: string };
+      return {
+        titel: String(o.titel ?? '').trim(),
+        empfehlung: String(o.empfehlung ?? '').trim(),
+      };
+    }
+    return String(item ?? '').trim();
+  });
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -100,13 +116,14 @@ STRENGE REGELN:
 3. Keine konkreten Behauptungen zu „mobiler Ansicht“, „Ladezeit“ oder „Farben“, wenn der gelieferte Text dazu nichts hergibt (bei reinem Textabruf oft nicht belegbar).
 4. Wenn kaum Inhalt vorliegt, formuliere allgemeinere aber noch immer sinnvolle Punkte zur Digitalpräsenz und verweise darauf, dass eine tiefergehende Prüfung der Live-Seite sinnvoll ist – ohne zu behaupten, du hättest sie gesehen.
 5. Formuliere die drei Optimierungen als klare Empfehlungen (Du/Sie-Kontext zum Unternehmen).
+6. Für jeden Optimierungspunkt: kurzer Titel (Überschrift), darunter die konkrete Empfehlung (1–2 Sätze).
 
 Antworte ausschließlich als JSON (kein Markdown):
 {
   "optimierungen": [
-    "Optimierung 1 – konkret und auf dieses Unternehmen bezogen (1-2 Sätze)",
-    "Optimierung 2 – konkret und auf dieses Unternehmen bezogen (1-2 Sätze)",
-    "Optimierung 3 – konkret und auf dieses Unternehmen bezogen (1-2 Sätze)"
+    { "titel": "Kurze Überschrift für Punkt 1", "empfehlung": "Konkrete Empfehlung als Fließtext." },
+    { "titel": "…", "empfehlung": "…" },
+    { "titel": "…", "empfehlung": "…" }
   ],
   "ansprechpartner": "Name aus Impressum oder leerer String",
   "zusammenfassung": "Was macht das Unternehmen und warum Lead-interessant (1-2 Sätze, nur Belegtes)",
@@ -156,9 +173,10 @@ Antworte ausschließlich als JSON (kein Markdown):
     const rawText = g.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}';
 
     const parsed = parseGeminiJson(rawText);
+    const opts = optimierungenAusAntwort(Array.isArray(parsed.optimierungen) ? parsed.optimierungen : []);
 
     return res.status(200).json({
-      optimierungen: parsed.optimierungen?.slice(0, 3) ?? [],
+      optimierungen: opts,
       ansprechpartner: parsed.ansprechpartner ?? '',
       zusammenfassung: parsed.zusammenfassung ?? '',
       websiteGeladen: hatInhalt,
