@@ -54,10 +54,10 @@ function LeadKarte({
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <h3 className="text-sm font-semibold text-gray-100 truncate">{lead.name}</h3>
+            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2 mb-1">
+              <h3 className="text-sm font-semibold text-gray-100 break-words">{lead.name}</h3>
               {lead.branche && (
-                <span className="shrink-0 text-xs px-2 py-0.5 bg-dark-700 text-gray-400 rounded-full">{lead.branche.replace(/_/g, ' ')}</span>
+                <span className="shrink-0 self-start text-xs px-2 py-0.5 bg-dark-700 text-gray-400 rounded-full max-w-full truncate">{lead.branche.replace(/_/g, ' ')}</span>
               )}
             </div>
             <div className="space-y-0.5 text-xs text-gray-500">
@@ -66,7 +66,7 @@ function LeadKarte({
               {lead.website && (
                 <p className="flex items-center gap-1.5">
                   <Globe size={10} />
-                  <a href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`} target="_blank" rel="noopener noreferrer" className="hover:text-primary-400 truncate max-w-[220px] flex items-center gap-1">
+                  <a href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`} target="_blank" rel="noopener noreferrer" className="hover:text-primary-400 break-all sm:break-normal sm:truncate sm:max-w-[min(100%,220px)] inline-flex items-start gap-1">
                     {lead.website.replace(/^https?:\/\/(www\.)?/, '')} <ExternalLink size={9} />
                   </a>
                 </p>
@@ -97,12 +97,12 @@ function LeadKarte({
         </div>
 
         {/* Analyse-Bereich */}
-        <div className="mt-3 flex items-center gap-2">
+        <div className="mt-3 flex flex-wrap items-stretch gap-2">
           {!lead.analyse ? (
             <button
               onClick={onAnalyse}
               disabled={analysierend || !lead.website}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-primary-600/20 text-primary-300 border border-primary-700/50 rounded-lg hover:bg-primary-600/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex flex-1 min-h-[44px] sm:flex-initial items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-medium bg-primary-600/20 text-primary-300 border border-primary-700/50 rounded-xl hover:bg-primary-600/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               title={!lead.website ? 'Keine Website vorhanden' : ''}
             >
               {analysierend ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />}
@@ -111,7 +111,7 @@ function LeadKarte({
           ) : (
             <button
               onClick={() => setOffen(v => !v)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-400 bg-emerald-900/20 border border-emerald-800/50 rounded-lg hover:bg-emerald-900/30 transition-colors"
+              className="flex flex-1 min-h-[44px] sm:flex-initial items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-medium text-emerald-400 bg-emerald-900/20 border border-emerald-800/50 rounded-xl hover:bg-emerald-900/30 transition-colors"
             >
               <Sparkles size={11} />
               Analyse anzeigen
@@ -277,7 +277,7 @@ export default function Akquise() {
       />
 
       {/* Tab-Leiste */}
-      <div className="flex gap-1 px-8 pt-4 pb-0 border-b border-dark-700">
+      <div className="flex gap-1 px-4 sm:px-8 pt-4 pb-0 border-b border-dark-700 overflow-x-auto scrollbar-thin">
         {([
           { id: 'suche', label: 'Suche & Entdecken' },
           { id: 'potentiell', label: `Potentielle Kunden${potentielle.length > 0 ? ` (${potentielle.length})` : ''}` },
@@ -285,7 +285,7 @@ export default function Akquise() {
           <button
             key={t.id}
             onClick={() => setAnsicht(t.id)}
-            className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors border-b-2 -mb-px ${
+            className={`min-h-[44px] shrink-0 px-3 sm:px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors border-b-2 -mb-px whitespace-nowrap ${
               ansicht === t.id
                 ? 'border-primary-500 text-primary-300 bg-dark-800'
                 : 'border-transparent text-gray-500 hover:text-gray-300'
@@ -296,57 +296,59 @@ export default function Akquise() {
         ))}
       </div>
 
-      <div className="p-8 space-y-6">
+      <div className="px-4 sm:px-8 pb-8 pt-2 sm:pt-0 space-y-6 max-w-[1600px] mx-auto w-full">
 
         {/* ── Suche ── */}
         {ansicht === 'suche' && (
           <>
             {/* Suchformular */}
-            <div className="bg-dark-800 border border-dark-700 rounded-2xl p-5 space-y-4">
+            <div className="bg-dark-800 border border-dark-700 rounded-2xl p-4 sm:p-5 space-y-4">
               <h2 className="text-sm font-semibold text-gray-300">Unternehmen finden</h2>
-              <div className="grid grid-cols-12 gap-3">
-                <div className="col-span-5">
+              <div className="flex flex-col gap-4">
+                <div className="w-full">
                   <label className="block text-xs font-medium text-gray-500 mb-1">Branche / Suchbegriff</label>
                   <input
                     value={query}
                     onChange={e => setQuery(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && suchen()}
                     placeholder="z.B. Bäckerei, Zahnarzt, Autohaus…"
-                    className="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full min-h-[44px] bg-dark-900 border border-dark-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
-                <div className="col-span-2">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">PLZ</label>
-                  <input
-                    value={plz}
-                    onChange={e => setPlz(e.target.value)}
-                    className="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  />
+                <div className="grid grid-cols-2 gap-3 sm:max-w-md">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">PLZ</label>
+                    <input
+                      value={plz}
+                      onChange={e => setPlz(e.target.value)}
+                      inputMode="numeric"
+                      autoComplete="postal-code"
+                      className="w-full min-h-[44px] bg-dark-900 border border-dark-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Umkreis (km)</label>
+                    <select
+                      value={radius}
+                      onChange={e => setRadius(e.target.value)}
+                      className="w-full min-h-[44px] bg-dark-900 border border-dark-700 rounded-lg px-3 py-2.5 text-base sm:text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    >
+                      <option value="10">10 km</option>
+                      <option value="25">25 km</option>
+                      <option value="50">50 km</option>
+                      <option value="75">75 km</option>
+                      <option value="100">100 km</option>
+                    </select>
+                  </div>
                 </div>
-                <div className="col-span-2">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Umkreis (km)</label>
-                  <select
-                    value={radius}
-                    onChange={e => setRadius(e.target.value)}
-                    className="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  >
-                    <option value="10">10 km</option>
-                    <option value="25">25 km</option>
-                    <option value="50">50 km</option>
-                    <option value="75">75 km</option>
-                    <option value="100">100 km</option>
-                  </select>
-                </div>
-                <div className="col-span-3 flex items-end">
-                  <button
-                    onClick={suchen}
-                    disabled={sucht || !query.trim()}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {sucht ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
-                    {sucht ? 'Suche läuft…' : 'Suchen'}
-                  </button>
-                </div>
+                <button
+                  onClick={suchen}
+                  disabled={sucht || !query.trim()}
+                  className="w-full min-h-[48px] flex items-center justify-center gap-2 px-4 py-3 bg-primary-600 text-white text-sm font-medium rounded-xl hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {sucht ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
+                  {sucht ? 'Suche läuft…' : 'Suchen'}
+                </button>
               </div>
               <p className="text-xs text-gray-600">
                 Tip: Markiere interessante Einträge mit ★ — sie landen dann in „Potentielle Kunden".
@@ -413,7 +415,7 @@ export default function Akquise() {
                       {/* E-Mail-Button */}
                       <button
                         onClick={() => setEmailLead(lead)}
-                        className="flex items-center justify-center gap-2 px-4 py-2 w-full text-sm font-medium bg-dark-800 border border-dark-700 text-gray-300 rounded-xl hover:bg-dark-700 hover:text-gray-100 transition-colors"
+                        className="flex items-center justify-center gap-2 px-4 py-3 min-h-[48px] w-full text-sm font-medium bg-dark-800 border border-dark-700 text-gray-300 rounded-xl hover:bg-dark-700 hover:text-gray-100 transition-colors"
                       >
                         <Mail size={14} /> E-Mail erstellen
                       </button>
