@@ -4,6 +4,36 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 /** Große HTML-Seiten sonst OOM / Regex auf MB-Strings → FUNCTION_INVOCATION_FAILED auf Vercel. */
 const MAX_HTML_RAW_CHARS = 450_000;
+/** Hartes Byte-Limit beim Einlesen: verhindert OOM durch `res.text()` bei MB-HTML (parallel bis zu 7 Requests). */
+const MAX_HTML_READ_BYTES = 900_000;
+
+/**
+ * Statt `res.text()` (lädt immer den kompletten Body): nur bis zu maxChars / maxBytes einlesen und Stream abbrechen.
+ */
+async function readResponseTextLimited(res: Response, maxChars: number, maxBytes: number): Promise<string> {
+  if (!res.body) return '';
+  const decoder = new TextDecoder('utf-8');
+  const reader = res.body.getReader();
+  let acc = '';
+  let totalBytes = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value?.length) continue;
+      totalBytes += value.length;
+      acc += decoder.decode(value, { stream: true });
+      if (acc.length >= maxChars || totalBytes >= maxBytes) {
+        await reader.cancel().catch(() => {});
+        break;
+      }
+    }
+  } catch {
+    /* Netzwerkabbruch o. Ä. */
+  }
+  acc += decoder.decode();
+  return acc.slice(0, maxChars);
+}
 
 function parseBody(req: VercelRequest): Record<string, unknown> {
   const b = req.body as unknown;
@@ -81,13 +111,13 @@ async function fetchSeiteHttp(url: string, timeoutMs = 6500): Promise<string> {
         'Accept-Language': 'de-DE,de;q=0.9,en;q=0.7',
       },
     });
-    clearTimeout(timer);
     if (!res.ok) return '';
-    const html = await res.text();
+    const html = await readResponseTextLimited(res, MAX_HTML_RAW_CHARS, MAX_HTML_READ_BYTES);
     return htmlZuKlartext(html);
   } catch {
-    clearTimeout(timer);
     return '';
+  } finally {
+    clearTimeout(timer);
   }
 }
 
