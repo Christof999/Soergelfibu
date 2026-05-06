@@ -1,9 +1,35 @@
 import type { LeadAnalyse, OptimierungPunkt } from '../types';
 
+/** Ein Feld enthält versehentlich komplette JSON-Rohantwort statt eines Punktes */
+function tryUnpackVollesOptimierungenJson(s: string): (string | OptimierungPunkt)[] | null {
+  const t = s.trim();
+  if (!t.startsWith('{') || !t.includes('"optimierungen"')) return null;
+  try {
+    const j = JSON.parse(t) as { optimierungen?: unknown[] };
+    if (Array.isArray(j.optimierungen)) {
+      return j.optimierungen.slice(0, 3).map(item => {
+        if (item && typeof item === 'object' && ('empfehlung' in item || 'titel' in item)) {
+          const o = item as OptimierungPunkt;
+          return { titel: String(o.titel ?? '').trim(), empfehlung: String(o.empfehlung ?? '').trim() };
+        }
+        return String(item ?? '').trim();
+      });
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 /** Rohdaten aus der Analyse-API (Strings oder Objekte) in Speicherform bringen */
 export function normalizeOptimierungenFromApi(raw: unknown): (string | OptimierungPunkt)[] {
   if (!Array.isArray(raw)) return [];
-  return raw.slice(0, 3).map(item => {
+  let arr = [...raw];
+  if (arr.length === 1 && typeof arr[0] === 'string') {
+    const unpacked = tryUnpackVollesOptimierungenJson(arr[0]);
+    if (unpacked && unpacked.length > 0) arr = unpacked;
+  }
+  return arr.slice(0, 3).map(item => {
     if (item && typeof item === 'object' && ('empfehlung' in item || 'titel' in item)) {
       const o = item as OptimierungPunkt;
       return {
@@ -13,6 +39,15 @@ export function normalizeOptimierungenFromApi(raw: unknown): (string | Optimieru
     }
     return String(item ?? '').trim();
   });
+}
+
+/** Verhindert Anzeige von JSON-Müll als „Zusammenfassung“ (ältere/fehlerhafte Speicherstände). */
+export function sanitizeAnalyseZusammenfassungDisplay(s: string): string {
+  const t = s.trim();
+  if (t.startsWith('{') && /"optimierungen"\s*:/.test(t)) {
+    return 'Die Kurzfassung ist technisch fehlerhaft. Bitte „KI-Analyse“ erneut ausführen.';
+  }
+  return s;
 }
 
 /** Einzelnen Analyse-Eintrag (String aus Altbestand oder Objekt) normalisieren */

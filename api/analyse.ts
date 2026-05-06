@@ -229,12 +229,36 @@ function extractFirstJSONObject(raw: string): string | null {
   return null;
 }
 
+/** Einfache Reparatur abgeschnittener JSON-Antworten (häufig bei zu kleinem maxOutputTokens). */
+function tryRepairTruncatedJson(s: string): string | null {
+  const t = s.trim();
+  if (!t.startsWith('{') || t.length < 30) return null;
+  const suffixes = ['}}', ']}', ']}}', '"]}}', '"}}}', '"}]}', '"}]}}'];
+  for (const suf of suffixes) {
+    try {
+      JSON.parse(t + suf);
+      return t + suf;
+    } catch {
+      /* nächster Versuch */
+    }
+  }
+  return null;
+}
+
 function parseGeminiJson(rawText: string): GeminiParsed {
   const stripped = stripMarkdownCodeFence(rawText.trim()).slice(0, 120_000);
   try {
     return JSON.parse(stripped) as GeminiParsed;
   } catch {
     /* weiter unten */
+  }
+  const repaired = tryRepairTruncatedJson(stripped);
+  if (repaired) {
+    try {
+      return JSON.parse(repaired) as GeminiParsed;
+    } catch {
+      /* weiter unten */
+    }
   }
   const balanced = extractFirstJSONObject(stripped);
   if (balanced) {
@@ -255,9 +279,124 @@ function parseGeminiJson(rawText: string): GeminiParsed {
   return {
     optimierungen: ['Analyse konnte nicht ausgewertet werden – die KI-Antwort war kein gültiges JSON.'],
     ansprechpartner: '',
-    zusammenfassung: stripped.slice(0, 200) || 'Keine Auswertung möglich.',
+    zusammenfassung:
+      'Die KI-Antwort war unvollständig oder technisch nicht lesbar. Bitte „KI-Analyse“ erneut ausführen — bei hartnäckigen Fällen unterstützt ein zweiter Lauf mit Browser-Rendering (falls konfiguriert) automatisch.',
     websiteGeladen: false,
   };
+}
+
+/** Erkennt unbrauchbare / abgebrochene KI-Antworten (soll Browserbase+Retry auslösen). */
+function geminiAntwortIstFallback(parsed: GeminiParsed): boolean {
+  const z = String(parsed.zusammenfassung ?? '').trim();
+  if (z.startsWith('{') && z.includes('"optimierungen"')) return true;
+  const o = parsed.optimierungen;
+  if (!Array.isArray(o) || o.length === 0) return true;
+  for (const item of o) {
+    if (typeof item === 'string' && item.trimStart().startsWith('{')) return true;
+  }
+  if (o.length === 1) {
+    const x = o[0];
+    const t = typeof x === 'string' ? x : JSON.stringify(x);
+    if (t.includes('Analyse konnte nicht ausgewertet werden')) return true;
+  }
+  return false;
+}
+
+function buildAnalysePrompt(
+  name: string,
+  branche: string,
+  website: string,
+  hauptUrlNorm: string | null,
+  hauptseite: string,
+  impressum: string,
+  kontextHerkunft: string,
+  hatInhalt: boolean
+): string {
+  return `Du bist ein erfahrener SEO- und Webdesign-Spezialist UND denkst gleichzeitig aus Sicht eines typischen Webseitenbesuchers (Handwerk/B2B).
+
+Unternehmen: ${name}
+Branche: ${branche || 'Unbekannt'}
+Website: ${hauptUrlNorm ?? (website.trim() || 'keine Website angegeben')}
+
+Technischer Kontext: ${kontextHerkunft}
+
+=== INHALT DER STARTSEITE ===
+${hauptseite || '(Leer oder nicht erreichbar)'}
+
+=== IMPRESSUM / KONTAKT (falls gefunden) ===
+${impressum || '(Nicht gefunden)'}
+
+AUFGABE – zwei kurze Perspektiven in den drei Optimierungspunkten verbinden:
+- Nutzenperspektive: Was wirkt für einen Besucher unklar, unnötig hürdenreich oder wenig vertrauensbildend – soweit aus dem Text ableitbar?
+- Fachperspektive: Was wäre aus SEO/UX/Webdesign-Sicht der nächste sinnvolle Schritt – ohne Fantasie-Zahlen?
+
+STRENGE REGELN:
+1. Erfinde keine Fakten. Nur was sich aus dem Text ableiten lässt.
+2. Ansprechpartner nur wenn explizit im Impressum/Kontakt-Text genannt, sonst "".
+3. Keine konkreten Behauptungen zu „mobiler Ansicht“, „Ladezeit“ oder „Farben“, wenn der gelieferte Text dazu nichts hergibt (bei reinem Textabruf oft nicht belegbar).
+4. Wenn kaum Inhalt vorliegt, formuliere allgemeinere aber noch immer sinnvolle Punkte zur Digitalpräsenz und verweise darauf, dass eine tiefergehende Prüfung der Live-Seite sinnvoll ist – ohne zu behaupten, du hättest sie gesehen.
+5. Formuliere die drei Optimierungen als klare Empfehlungen (Du/Sie-Kontext zum Unternehmen).
+6. Für jeden Optimierungspunkt: kurzer Titel (Überschrift), darunter die konkrete Empfehlung (1–2 Sätze).
+
+Antworte ausschließlich als ein einziges gültiges JSON-Objekt (kein Markdown, kein Text davor oder danach):
+{
+  "optimierungen": [
+    { "titel": "Kurze Überschrift für Punkt 1", "empfehlung": "Konkrete Empfehlung als Fließtext." },
+    { "titel": "…", "empfehlung": "…" },
+    { "titel": "…", "empfehlung": "…" }
+  ],
+  "ansprechpartner": "Name aus Impressum oder leerer String",
+  "zusammenfassung": "Was macht das Unternehmen und warum Lead-interessant (1-2 Sätze, nur Belegtes)",
+  "websiteGeladen": ${hatInhalt}
+}`;
+}
+
+async function rufeGeminiAuf(
+  prompt: string,
+  GEMINI_KEY: string,
+  timeoutMs: number
+): Promise<{ ok: boolean; rawText: string; status?: number; geminiData?: unknown }> {
+  const geminiCtrl = new AbortController();
+  const geminiTimer = setTimeout(() => geminiCtrl.abort(), timeoutMs);
+  try {
+    const geminiRes = await fetch(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+      {
+        method: 'POST',
+        signal: geminiCtrl.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': GEMINI_KEY,
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 8192,
+            responseMimeType: 'application/json',
+          },
+        }),
+      }
+    );
+    let geminiData: unknown;
+    try {
+      geminiData = await geminiRes.json();
+    } catch {
+      return { ok: false, rawText: '{}' };
+    }
+    if (!geminiRes.ok) {
+      return { ok: false, rawText: '{}', status: geminiRes.status, geminiData };
+    }
+    const g = geminiData as {
+      candidates?: { content?: { parts?: { text?: string }[] } }[];
+    };
+    const rawText = g.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}';
+    return { ok: true, rawText };
+  } catch {
+    return { ok: false, rawText: '{}' };
+  } finally {
+    clearTimeout(geminiTimer);
+  }
 }
 
 function optimierungenAusAntwort(raw: unknown[]): (string | { titel: string; empfehlung: string })[] {
@@ -322,107 +461,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     hatInhalt = hauptseite.length > 50 || impressum.length > 50;
 
-    const kontextHerkunft =
+    let kontextHerkunft =
       fetchMethode === 'browserbase'
         ? 'Die Startseite wurde in einem echten Browser (Browserbase, JavaScript aktiv) geladen — näher an dem, was Besucher sehen, als ein reiner HTTP-Textabruf.'
         : 'Der Seiteninhalt wurde per HTTP abgerufen (ohne JavaScript; dynamische Inhalte können fehlen).';
 
-    const prompt = `Du bist ein erfahrener SEO- und Webdesign-Spezialist UND denkst gleichzeitig aus Sicht eines typischen Webseitenbesuchers (Handwerk/B2B).
+    let prompt = buildAnalysePrompt(name, branche, website, hauptUrlNorm, hauptseite, impressum, kontextHerkunft, hatInhalt);
 
-Unternehmen: ${name}
-Branche: ${branche || 'Unbekannt'}
-Website: ${hauptUrlNorm ?? (website.trim() || 'keine Website angegeben')}
-
-Technischer Kontext: ${kontextHerkunft}
-
-=== INHALT DER STARTSEITE ===
-${hauptseite || '(Leer oder nicht erreichbar)'}
-
-=== IMPRESSUM / KONTAKT (falls gefunden) ===
-${impressum || '(Nicht gefunden)'}
-
-AUFGABE – zwei kurze Perspektiven in den drei Optimierungspunkten verbinden:
-- Nutzenperspektive: Was wirkt für einen Besucher unklar, unnötig hürdenreich oder wenig vertrauensbildend – soweit aus dem Text ableitbar?
-- Fachperspektive: Was wäre aus SEO/UX/Webdesign-Sicht der nächste sinnvolle Schritt – ohne Fantasie-Zahlen?
-
-STRENGE REGELN:
-1. Erfinde keine Fakten. Nur was sich aus dem Text ableiten lässt.
-2. Ansprechpartner nur wenn explizit im Impressum/Kontakt-Text genannt, sonst "".
-3. Keine konkreten Behauptungen zu „mobiler Ansicht“, „Ladezeit“ oder „Farben“, wenn der gelieferte Text dazu nichts hergibt (bei reinem Textabruf oft nicht belegbar).
-4. Wenn kaum Inhalt vorliegt, formuliere allgemeinere aber noch immer sinnvolle Punkte zur Digitalpräsenz und verweise darauf, dass eine tiefergehende Prüfung der Live-Seite sinnvoll ist – ohne zu behaupten, du hättest sie gesehen.
-5. Formuliere die drei Optimierungen als klare Empfehlungen (Du/Sie-Kontext zum Unternehmen).
-6. Für jeden Optimierungspunkt: kurzer Titel (Überschrift), darunter die konkrete Empfehlung (1–2 Sätze).
-
-Antworte ausschließlich als JSON (kein Markdown):
-{
-  "optimierungen": [
-    { "titel": "Kurze Überschrift für Punkt 1", "empfehlung": "Konkrete Empfehlung als Fließtext." },
-    { "titel": "…", "empfehlung": "…" },
-    { "titel": "…", "empfehlung": "…" }
-  ],
-  "ansprechpartner": "Name aus Impressum oder leerer String",
-  "zusammenfassung": "Was macht das Unternehmen und warum Lead-interessant (1-2 Sätze, nur Belegtes)",
-  "websiteGeladen": ${hatInhalt}
-}`;
-
-    const geminiCtrl = new AbortController();
-    const geminiTimer = setTimeout(() => geminiCtrl.abort(), 45_000);
-    let geminiRes: Response;
-    try {
-      geminiRes = await fetch(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
-        {
-          method: 'POST',
-          signal: geminiCtrl.signal,
-          headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': GEMINI_KEY,
-          },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-              temperature: 0.2,
-              maxOutputTokens: 2048,
-              responseMimeType: 'application/json',
-            },
-          }),
-        }
-      );
-    } catch (e) {
+    let geminiOut = await rufeGeminiAuf(prompt, GEMINI_KEY, 48_000);
+    if (!geminiOut.ok) {
+      if (geminiOut.status != null && geminiOut.geminiData != null) {
+        const errMsg =
+          typeof geminiOut.geminiData === 'object' &&
+          geminiOut.geminiData !== null &&
+          'error' in geminiOut.geminiData &&
+          typeof (geminiOut.geminiData as { error?: { message?: string } }).error?.message === 'string'
+            ? (geminiOut.geminiData as { error: { message: string } }).error.message
+            : JSON.stringify(geminiOut.geminiData);
+        return res.status(500).json({ error: `Gemini API Fehler: ${errMsg}` });
+      }
       return res.status(504).json({
-        error: 'Gemini-Anfrage fehlgeschlagen oder Zeitüberschreitung (45s).',
-        detail: e instanceof Error ? e.message : String(e),
-      });
-    } finally {
-      clearTimeout(geminiTimer);
-    }
-
-    let geminiData: unknown;
-    try {
-      geminiData = await geminiRes.json();
-    } catch {
-      return res.status(502).json({
-        error: 'Gemini-Antwort war kein gültiges JSON (Netzwerk oder Proxy). Bitte erneut versuchen.',
+        error: 'Gemini-Anfrage fehlgeschlagen oder Zeitüberschreitung.',
       });
     }
 
-    if (!geminiRes.ok) {
-      const errMsg =
-        typeof geminiData === 'object' &&
-        geminiData !== null &&
-        'error' in geminiData &&
-        typeof (geminiData as { error?: { message?: string } }).error?.message === 'string'
-          ? (geminiData as { error: { message: string } }).error.message
-          : JSON.stringify(geminiData);
-      return res.status(500).json({ error: `Gemini API Fehler: ${errMsg}` });
+    let parsed = parseGeminiJson(geminiOut.rawText);
+
+    /** KI lieferte kein brauchbares JSON oder Fallback — einmal Browserbase + zweiter Gemini-Lauf (echtes Rendering). */
+    if (geminiAntwortIstFallback(parsed) && bbKey && hauptUrlNorm && fetchMethode === 'http') {
+      const bbText = await fetchSeiteBrowserbase(hauptUrlNorm);
+      if (bbText.length >= 80) {
+        hauptseite = bbText.slice(0, 4500);
+        fetchMethode = 'browserbase';
+        hatInhalt = hauptseite.length > 50 || impressum.length > 50;
+        kontextHerkunft =
+          'Die Startseite wurde in einem echten Browser (Browserbase, JavaScript aktiv) geladen — zweiter Versuch nach unbrauchbarer KI-Antwort beim reinen HTTP-Abruf.';
+        prompt = buildAnalysePrompt(name, branche, website, hauptUrlNorm, hauptseite, impressum, kontextHerkunft, hatInhalt);
+        geminiOut = await rufeGeminiAuf(prompt, GEMINI_KEY, 48_000);
+        if (geminiOut.ok) {
+          parsed = parseGeminiJson(geminiOut.rawText);
+        }
+      }
     }
 
-    const g = geminiData as {
-      candidates?: { content?: { parts?: { text?: string }[] } }[];
-    };
-    const rawText = g.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}';
-
-    const parsed = parseGeminiJson(rawText);
     const opts = optimierungenAusAntwort(Array.isArray(parsed.optimierungen) ? parsed.optimierungen : []);
 
     return res.status(200).json({

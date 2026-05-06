@@ -9,7 +9,7 @@ import PageHeader from '../components/PageHeader';
 import { useApp } from '../context/AppContext';
 import { Lead, LeadAnalyse } from '../types';
 import type { AkquiseEmailTemplateKind } from '../utils/emailTemplate';
-import { normalizeOptimierungenFromApi, normalizeOptimierungenListe } from '../utils/leadAnalyse';
+import { normalizeOptimierungenFromApi, normalizeOptimierungenListe, sanitizeAnalyseZusammenfassungDisplay } from '../utils/leadAnalyse';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -164,7 +164,7 @@ function LeadKarte({
         {lead.analyse && offen && (
           <div className="mt-3 pt-3 border-t border-dark-700 space-y-3">
             {lead.analyse.zusammenfassung && (
-              <p className="text-xs text-gray-400 italic">{lead.analyse.zusammenfassung}</p>
+              <p className="text-xs text-gray-400 italic">{sanitizeAnalyseZusammenfassungDisplay(lead.analyse.zusammenfassung)}</p>
             )}
             {lead.analyse.ansprechpartner && (
               <div className="flex items-center gap-2 text-xs">
