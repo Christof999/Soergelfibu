@@ -144,6 +144,44 @@ async function ladeSeitenParallel(hauptUrl: string, impressumKandidaten: string[
   }
 }
 
+/**
+ * Startseite mit Browserbase + Playwright (JS ausgeführt). Nur wenn Env gesetzt.
+ * Vercel: BROWSERBASE_API_KEY (optional BROWSERBASE_PROJECT_ID).
+ */
+async function fetchSeiteBrowserbase(url: string): Promise<string> {
+  const apiKey = process.env.BROWSERBASE_API_KEY?.trim();
+  if (!apiKey) return '';
+  try {
+    const { default: Browserbase } = await import('@browserbasehq/sdk');
+    const { chromium } = await import('playwright-core');
+    const projectId = process.env.BROWSERBASE_PROJECT_ID?.trim();
+    const bb = new Browserbase({ apiKey });
+    const session = await bb.sessions.create({
+      timeout: 50,
+      region: 'eu-central-1',
+      ...(projectId ? { projectId } : {}),
+    });
+    const connectUrl = session.connectUrl;
+    if (!connectUrl) return '';
+
+    const browser = await chromium.connectOverCDP(connectUrl);
+    try {
+      const context = browser.contexts()[0] ?? (await browser.newContext());
+      const page = context.pages()[0] ?? (await context.newPage());
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 22000 });
+      await new Promise<void>(resolve => setTimeout(resolve, 1200));
+      let html = await page.content();
+      if (html.length > MAX_HTML_RAW_CHARS) html = html.slice(0, MAX_HTML_RAW_CHARS);
+      return htmlZuKlartext(html);
+    } finally {
+      await browser.close().catch(() => {});
+    }
+  } catch (e) {
+    console.error('fetchSeiteBrowserbase:', e);
+    return '';
+  }
+}
+
 interface GeminiParsed {
   optimierungen?: unknown[];
   ansprechpartner?: string;
@@ -249,7 +287,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     let hauptseite = '';
     let impressum = '';
-    const fetchMethode = 'http' as const;
+    let fetchMethode: 'http' | 'browserbase' = 'http';
     const hauptUrlNorm = normalisiereWebsiteUrl(website);
 
     if (hauptUrlNorm) {
@@ -270,10 +308,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    const hatInhalt = hauptseite.length > 50 || impressum.length > 50;
+    let hatInhalt = hauptseite.length > 50 || impressum.length > 50;
+    /** HTTP oft nur Bot-Schutz/leere Shell → dann Browserbase versuchen */
+    const startZuDuenn = hauptseite.trim().length < 120;
+    const bbKey = process.env.BROWSERBASE_API_KEY?.trim();
+    if (bbKey && hauptUrlNorm && (!hatInhalt || startZuDuenn)) {
+      const bbText = await fetchSeiteBrowserbase(hauptUrlNorm);
+      if (bbText.length >= 40 && bbText.length > hauptseite.length) {
+        hauptseite = bbText.slice(0, 4500);
+        fetchMethode = 'browserbase';
+      }
+    }
+
+    hatInhalt = hauptseite.length > 50 || impressum.length > 50;
 
     const kontextHerkunft =
-      'Der Seiteninhalt wurde per HTTP abgerufen (ohne JavaScript; dynamische Inhalte können fehlen).';
+      fetchMethode === 'browserbase'
+        ? 'Die Startseite wurde in einem echten Browser (Browserbase, JavaScript aktiv) geladen — näher an dem, was Besucher sehen, als ein reiner HTTP-Textabruf.'
+        : 'Der Seiteninhalt wurde per HTTP abgerufen (ohne JavaScript; dynamische Inhalte können fehlen).';
 
     const prompt = `Du bist ein erfahrener SEO- und Webdesign-Spezialist UND denkst gleichzeitig aus Sicht eines typischen Webseitenbesuchers (Handwerk/B2B).
 
