@@ -1,4 +1,4 @@
-import type { Lead } from '../types';
+import type { Lead, OptimierungPunkt } from '../types';
 import { normalizeOptimierungenListe } from './leadAnalyse';
 
 export type AkquiseEmailTemplateKind = 'analyse' | 'standard';
@@ -12,8 +12,13 @@ export interface EmailVars {
   templateKind: AkquiseEmailTemplateKind;
   /** Nur bei templateKind „standard“: Fließtext zu Leistungen & Zusammenarbeit (Absätze mit Leerzeile) */
   standardLeistungstext?: string;
-  /** Exakt 3 Optimierungen aus der KI-Analyse oder Fallback-Texte (nur „analyse“) */
+  /** Exakt 3 Optimierungen aus der KI-Analyse oder Fallback-Texte (nur „analyse“) — Bearbeitung im Modal */
   optimierungen: [string, string, string];
+  /**
+   * Nur „analyse“: strukturierte KI-Punkte für HTML/Klartext.
+   * Wenn gesetzt, werden Titel und Empfehlung direkt verwendet (ohne splitOpt-Zerlegung der Rohstrings).
+   */
+  optimierungPunkte?: [OptimierungPunkt, OptimierungPunkt, OptimierungPunkt];
   preheader?: string;
   subject: string;
 }
@@ -122,7 +127,7 @@ export function buildInitialEmailVars(
     if (!t && !e) return '';
     if (!t) return e;
     if (!e) return t;
-    return `${t} ${e}`;
+    return `${t}\n\n${e}`;
   }) as [string, string, string];
 
   const hatKiText = optsFromKi.some(s => String(s ?? '').trim().length > 0);
@@ -133,6 +138,7 @@ export function buildInitialEmailVars(
     websiteUrl,
     ctaUrl: terminUrl || DEFAULT_AKQUISE_KONTAKT_URL,
     templateKind: 'analyse',
+    optimierungPunkte: hatKiText ? drei : undefined,
     optimierungen: hatKiText ? optsFromKi : [...FALLBACK_OPT],
     subject: buildSubject(lead),
   };
@@ -146,11 +152,21 @@ export function buildEmailHtml(vars: EmailVars): string {
     ? vars.optimierungen
     : FALLBACK_OPT;
 
-  const parsed = opts.map(o => splitOpt(o)) as [
-    { title: string; body: string },
-    { title: string; body: string },
-    { title: string; body: string }
-  ];
+  const parsed =
+    vars.templateKind === 'analyse' && vars.optimierungPunkte
+      ? (vars.optimierungPunkte.map((p, i) => ({
+          title: String(p.titel ?? '').trim() || `Empfehlung ${i + 1}`,
+          body: String(p.empfehlung ?? '').trim(),
+        })) as [
+          { title: string; body: string },
+          { title: string; body: string },
+          { title: string; body: string },
+        ])
+      : (opts.map(o => splitOpt(o)) as [
+          { title: string; body: string },
+          { title: string; body: string },
+          { title: string; body: string },
+        ]);
 
   const preheader = vars.preheader
     ?? (isStandard
@@ -372,6 +388,33 @@ Sie erhalten diese Mail einmalig. Nicht mehr kontaktieren: hallo@soergel-design.
   }
 
   const opts = vars.optimierungen.length === 3 ? vars.optimierungen : FALLBACK_OPT;
+
+  if (vars.optimierungPunkte && vars.templateKind === 'analyse') {
+    const blocks = vars.optimierungPunkte.map((p, i) => {
+      const t = String(p.titel ?? '').trim();
+      const e = String(p.empfehlung ?? '').trim();
+      const head = t || `Punkt ${i + 1}`;
+      const num = String(i + 1).padStart(2, '0');
+      return `${num} · ${head}${e ? `\n${e}` : ''}`;
+    });
+    return `Hallo ${vars.customerName},
+
+ich habe mir ${vars.websiteUrl} angesehen. Drei Punkte kosten Sie messbar Anfragen:
+
+${blocks.join('\n\n')}
+
+Mein Angebot: 15 Minuten am Telefon. Ich zeige Ihnen die drei Punkte konkret an Ihrer Seite — kein Verkaufsgespräch, kein Haken.
+
+Termin buchen: ${vars.ctaUrl}
+
+Viele Grüße
+Christof Sörgel
+SØRGEL-design · www.soergel-design.de
+
+---
+Sie erhalten diese Mail einmalig. Nicht mehr kontaktieren: hallo@soergel-design.de`;
+  }
+
   return `Hallo ${vars.customerName},
 
 ich habe mir ${vars.websiteUrl} angesehen. Drei Punkte kosten Sie messbar Anfragen:

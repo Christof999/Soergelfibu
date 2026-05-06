@@ -69,7 +69,7 @@ export default function EmailModal({ lead, emailMode, onClose, onEmailSent }: Pr
     setVars(p => {
       const o = [...p.optimierungen] as [string, string, string];
       o[idx] = v;
-      return { ...p, optimierungen: o };
+      return { ...p, optimierungen: o, optimierungPunkte: undefined };
     });
 
   const copyHtml = async () => {

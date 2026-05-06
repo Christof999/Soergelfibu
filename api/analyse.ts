@@ -151,26 +151,75 @@ interface GeminiParsed {
   websiteGeladen?: boolean;
 }
 
-function parseGeminiJson(rawText: string): GeminiParsed {
-  const trimmed = rawText.trim().slice(0, 120_000);
-  try {
-    return JSON.parse(trimmed) as GeminiParsed;
-  } catch {
-    const match = trimmed.match(/\{[\s\S]*\}/);
-    if (match) {
-      try {
-        return JSON.parse(match[0]) as GeminiParsed;
-      } catch {
-        /* Fallback */
+/** Entfernt ```json … ``` um Gemini-Rohausgaben zu parsen. */
+function stripMarkdownCodeFence(text: string): string {
+  let t = text.trim();
+  if (!t.startsWith('```')) return t;
+  t = t.replace(/^```(?:json)?\s*\n?/i, '');
+  const end = t.lastIndexOf('```');
+  if (end >= 0) t = t.slice(0, end);
+  return t.trim();
+}
+
+/** Erstes vollständiges JSON-Objekt per Klammerzählung (Strings mit " werden berücksichtigt). */
+function extractFirstJSONObject(raw: string): string | null {
+  const start = raw.indexOf('{');
+  if (start < 0) return null;
+  let depth = 0;
+  let inStr = false;
+  let escaped = false;
+  for (let i = start; i < raw.length; i++) {
+    const c = raw[i];
+    if (!inStr) {
+      if (c === '"') {
+        inStr = true;
+        escaped = false;
+      } else if (c === '{') {
+        depth++;
+      } else if (c === '}') {
+        depth--;
+        if (depth === 0) return raw.slice(start, i + 1);
       }
+    } else if (escaped) {
+      escaped = false;
+    } else if (c === '\\') {
+      escaped = true;
+    } else if (c === '"') {
+      inStr = false;
     }
-    return {
-      optimierungen: ['Analyse konnte nicht ausgewertet werden – die KI-Antwort war kein gültiges JSON.'],
-      ansprechpartner: '',
-      zusammenfassung: trimmed.slice(0, 200) || 'Keine Auswertung möglich.',
-      websiteGeladen: false,
-    };
   }
+  return null;
+}
+
+function parseGeminiJson(rawText: string): GeminiParsed {
+  const stripped = stripMarkdownCodeFence(rawText.trim()).slice(0, 120_000);
+  try {
+    return JSON.parse(stripped) as GeminiParsed;
+  } catch {
+    /* weiter unten */
+  }
+  const balanced = extractFirstJSONObject(stripped);
+  if (balanced) {
+    try {
+      return JSON.parse(balanced) as GeminiParsed;
+    } catch {
+      /* weiter unten */
+    }
+  }
+  const match = stripped.match(/\{[\s\S]*\}/);
+  if (match) {
+    try {
+      return JSON.parse(match[0]) as GeminiParsed;
+    } catch {
+      /* Fallback */
+    }
+  }
+  return {
+    optimierungen: ['Analyse konnte nicht ausgewertet werden – die KI-Antwort war kein gültiges JSON.'],
+    ansprechpartner: '',
+    zusammenfassung: stripped.slice(0, 200) || 'Keine Auswertung möglich.',
+    websiteGeladen: false,
+  };
 }
 
 function optimierungenAusAntwort(raw: unknown[]): (string | { titel: string; empfehlung: string })[] {
