@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { ladeSeiteninhalteHttp } from './analyse-fetch-lite';
-import { basisAusUrl, normalisiereWebsiteUrl } from './url-normalize';
+
+/** Alles in einer Datei: weniger Bundling-Probleme auf Vercel. */
 
 function parseBody(req: VercelRequest): Record<string, unknown> {
   const b = req.body as unknown;
@@ -15,6 +15,82 @@ function parseBody(req: VercelRequest): Record<string, unknown> {
   }
   if (typeof b === 'object' && !Array.isArray(b)) return b as Record<string, unknown>;
   return {};
+}
+
+function normalisiereWebsiteUrl(roh: string): string | null {
+  const t = roh.trim();
+  if (!t) return null;
+  try {
+    const mitSchema = /^[a-z][a-z0-9+.-]*:\/\//i.test(t) ? t : `https://${t}`;
+    const u = new URL(mitSchema);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+    const host = u.hostname.replace(/^www\./i, '');
+    if (!host || host.length < 2 || !host.includes('.')) return null;
+    return u.href;
+  } catch {
+    return null;
+  }
+}
+
+function basisAusUrl(absUrl: string): string | null {
+  try {
+    const u = new URL(absUrl);
+    return `${u.protocol}//${u.host}`;
+  } catch {
+    return null;
+  }
+}
+
+function htmlZuKlartext(html: string): string {
+  return html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+async function fetchSeiteHttp(url: string, timeoutMs = 6500): Promise<string> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      signal: ctrl.signal,
+      redirect: 'follow',
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'de-DE,de;q=0.9,en;q=0.7',
+      },
+    });
+    clearTimeout(timer);
+    if (!res.ok) return '';
+    const html = await res.text();
+    return htmlZuKlartext(html);
+  } catch {
+    clearTimeout(timer);
+    return '';
+  }
+}
+
+async function ladeSeitenParallel(hauptUrl: string, impressumKandidaten: string[]) {
+  const MAX_IMPRESSUM = 6;
+  const urls = [hauptUrl, ...impressumKandidaten.slice(0, MAX_IMPRESSUM)];
+  const texts = await Promise.all(urls.map(u => fetchSeiteHttp(u, 6500)));
+  const startseite = (texts[0] ?? '').slice(0, 4500);
+  let impressum = '';
+  for (let i = 1; i < texts.length; i++) {
+    if (texts[i].length > 100) {
+      impressum = texts[i];
+      break;
+    }
+  }
+  return {
+    startseite,
+    impressum: impressum.slice(0, 2200),
+  };
 }
 
 interface GeminiParsed {
@@ -34,7 +110,7 @@ function parseGeminiJson(rawText: string): GeminiParsed {
       try {
         return JSON.parse(match[0]) as GeminiParsed;
       } catch {
-        /* Fallback unten */
+        /* Fallback */
       }
     }
     return {
@@ -75,12 +151,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let impressum = '';
     const fetchMethode = 'http' as const;
     const hauptUrlNorm = normalisiereWebsiteUrl(website);
-    const hatWebsite = !!hauptUrlNorm;
 
-    if (hatWebsite && hauptUrlNorm) {
+    if (hauptUrlNorm) {
       const basis = basisAusUrl(hauptUrlNorm);
       if (basis) {
-        const hauptUrl = hauptUrlNorm;
         const impressumKandidaten = [
           `${basis}/impressum`,
           `${basis}/impressum.html`,
@@ -90,8 +164,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           `${basis}/de/impressum`,
           `${basis}/legal/imprint`,
         ];
-
-        const geladen = await ladeSeiteninhalteHttp({ hauptUrl, impressumKandidaten });
+        const geladen = await ladeSeitenParallel(hauptUrlNorm, impressumKandidaten);
         hauptseite = geladen.startseite;
         impressum = geladen.impressum;
       }
