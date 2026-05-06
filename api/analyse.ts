@@ -2,9 +2,20 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 /** Alles in einer Datei: weniger Bundling-Probleme auf Vercel. */
 
+/** Große HTML-Seiten sonst OOM / Regex auf MB-Strings → FUNCTION_INVOCATION_FAILED auf Vercel. */
+const MAX_HTML_RAW_CHARS = 450_000;
+
 function parseBody(req: VercelRequest): Record<string, unknown> {
   const b = req.body as unknown;
   if (b == null) return {};
+  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(b)) {
+    try {
+      const j = JSON.parse(b.toString('utf8')) as unknown;
+      return typeof j === 'object' && j !== null && !Array.isArray(j) ? (j as Record<string, unknown>) : {};
+    } catch {
+      return {};
+    }
+  }
   if (typeof b === 'string') {
     try {
       const j = JSON.parse(b) as unknown;
@@ -42,13 +53,18 @@ function basisAusUrl(absUrl: string): string | null {
 }
 
 function htmlZuKlartext(html: string): string {
-  return html
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  const raw = html.length > MAX_HTML_RAW_CHARS ? html.slice(0, MAX_HTML_RAW_CHARS) : html;
+  try {
+    return raw
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  } catch {
+    return '';
+  }
 }
 
 async function fetchSeiteHttp(url: string, timeoutMs = 6500): Promise<string> {
@@ -76,21 +92,26 @@ async function fetchSeiteHttp(url: string, timeoutMs = 6500): Promise<string> {
 }
 
 async function ladeSeitenParallel(hauptUrl: string, impressumKandidaten: string[]) {
-  const MAX_IMPRESSUM = 6;
-  const urls = [hauptUrl, ...impressumKandidaten.slice(0, MAX_IMPRESSUM)];
-  const texts = await Promise.all(urls.map(u => fetchSeiteHttp(u, 6500)));
-  const startseite = (texts[0] ?? '').slice(0, 4500);
-  let impressum = '';
-  for (let i = 1; i < texts.length; i++) {
-    if (texts[i].length > 100) {
-      impressum = texts[i];
-      break;
+  try {
+    const MAX_IMPRESSUM = 6;
+    const urls = [hauptUrl, ...impressumKandidaten.slice(0, MAX_IMPRESSUM)];
+    const texts = await Promise.all(urls.map(u => fetchSeiteHttp(u, 6500)));
+    const startseite = (texts[0] ?? '').slice(0, 4500);
+    let impressum = '';
+    for (let i = 1; i < texts.length; i++) {
+      if (texts[i].length > 100) {
+        impressum = texts[i];
+        break;
+      }
     }
+    return {
+      startseite,
+      impressum: impressum.slice(0, 2200),
+    };
+  } catch (e) {
+    console.error('ladeSeitenParallel:', e);
+    return { startseite: '', impressum: '' };
   }
-  return {
-    startseite,
-    impressum: impressum.slice(0, 2200),
-  };
 }
 
 interface GeminiParsed {
@@ -101,7 +122,7 @@ interface GeminiParsed {
 }
 
 function parseGeminiJson(rawText: string): GeminiParsed {
-  const trimmed = rawText.trim();
+  const trimmed = rawText.trim().slice(0, 120_000);
   try {
     return JSON.parse(trimmed) as GeminiParsed;
   } catch {
@@ -218,11 +239,14 @@ Antworte ausschließlich als JSON (kein Markdown):
     let geminiRes: Response;
     try {
       geminiRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
         {
           method: 'POST',
           signal: geminiCtrl.signal,
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': GEMINI_KEY,
+          },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {
