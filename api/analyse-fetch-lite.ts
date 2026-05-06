@@ -1,6 +1,6 @@
 /**
- * Nur HTTP-Fetch — kein Playwright, keine schweren Bundles.
- * Wird von api/analyse.ts immer verwendet; Browserbase optional separat.
+ * Nur HTTP-Fetch — kurze Timeouts + parallele Abrufe, damit die Funktion unter Vercel-Limits bleibt.
+ * (Sequenzielle 7×8s Requests haben FUNCTION_INVOCATION_FAILED durch Timeout ausgelöst.)
  */
 
 function htmlZuKlartext(html: string): string {
@@ -13,9 +13,9 @@ function htmlZuKlartext(html: string): string {
     .trim();
 }
 
-export async function fetchSeiteHttp(url: string, timeoutMs = 12000): Promise<string> {
+export async function fetchSeiteHttp(url: string, timeoutMs = 6000): Promise<string> {
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const res = await fetch(url, {
       signal: ctrl.signal,
@@ -27,12 +27,12 @@ export async function fetchSeiteHttp(url: string, timeoutMs = 12000): Promise<st
         'Accept-Language': 'de-DE,de;q=0.9,en;q=0.7',
       },
     });
-    clearTimeout(t);
+    clearTimeout(timer);
     if (!res.ok) return '';
     const html = await res.text();
     return htmlZuKlartext(html);
   } catch {
-    clearTimeout(t);
+    clearTimeout(timer);
     return '';
   }
 }
@@ -45,27 +45,31 @@ export interface GeladeneSeiten {
   methode: FetchMethod;
 }
 
-async function ladePerHttp(hauptUrl: string, impressumKandidaten: string[]): Promise<GeladeneSeiten> {
-  const startseite = (await fetchSeiteHttp(hauptUrl, 12000)).slice(0, 4500);
+/**
+ * Hauptseite + Impressum-Kandidaten parallel — typisch unter 7 s Wandzeit statt 60+ s seriell.
+ */
+export async function ladeSeiteninhalteHttp(params: {
+  hauptUrl: string;
+  impressumKandidaten: string[];
+}): Promise<GeladeneSeiten> {
+  const { hauptUrl, impressumKandidaten } = params;
+  const MAX_IMPRESSUM = 6;
+  const urls = [hauptUrl, ...impressumKandidaten.slice(0, MAX_IMPRESSUM)];
+
+  const texts = await Promise.all(urls.map(u => fetchSeiteHttp(u, 6500)));
+
+  const startseite = (texts[0] ?? '').slice(0, 4500);
   let impressum = '';
-  for (const url of impressumKandidaten) {
-    const t = await fetchSeiteHttp(url, 8000);
-    if (t.length > 100) {
-      impressum = t;
+  for (let i = 1; i < texts.length; i++) {
+    if (texts[i].length > 100) {
+      impressum = texts[i];
       break;
     }
   }
+
   return {
     startseite,
     impressum: impressum.slice(0, 2200),
     methode: 'http',
   };
-}
-
-/** Nur HTTP — stabil auf Vercel Serverless. */
-export async function ladeSeiteninhalteHttp(params: {
-  hauptUrl: string;
-  impressumKandidaten: string[];
-}): Promise<GeladeneSeiten> {
-  return ladePerHttp(params.hauptUrl, params.impressumKandidaten);
 }
