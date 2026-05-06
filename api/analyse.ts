@@ -230,7 +230,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
 Unternehmen: ${name}
 Branche: ${branche || 'Unbekannt'}
-Website: ${hauptUrlNorm ?? website.trim() || 'keine Website angegeben'}
+Website: ${hauptUrlNorm ?? (website.trim() || 'keine Website angegeben')}
 
 Technischer Kontext: ${kontextHerkunft}
 
