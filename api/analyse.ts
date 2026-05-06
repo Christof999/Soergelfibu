@@ -140,21 +140,34 @@ Antworte ausschließlich als JSON (kein Markdown):
   "websiteGeladen": ${hatInhalt}
 }`;
 
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.2,
-            maxOutputTokens: 2048,
-            responseMimeType: 'application/json',
-          },
-        }),
-      }
-    );
+    const geminiCtrl = new AbortController();
+    const geminiTimer = setTimeout(() => geminiCtrl.abort(), 45_000);
+    let geminiRes: Response;
+    try {
+      geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
+        {
+          method: 'POST',
+          signal: geminiCtrl.signal,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.2,
+              maxOutputTokens: 2048,
+              responseMimeType: 'application/json',
+            },
+          }),
+        }
+      );
+    } catch (e) {
+      return res.status(504).json({
+        error: 'Gemini-Anfrage fehlgeschlagen oder Zeitüberschreitung (45s).',
+        detail: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      clearTimeout(geminiTimer);
+    }
 
     let geminiData: unknown;
     try {

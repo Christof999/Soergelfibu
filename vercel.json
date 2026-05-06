@@ -1,6 +1,6 @@
 {
   "functions": {
-    "api/analyse.ts": {
+    "api/**/*.ts": {
       "maxDuration": 60
     }
   },
