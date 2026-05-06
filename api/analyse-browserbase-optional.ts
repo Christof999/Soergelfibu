@@ -1,47 +1,9 @@
 /**
- * Seitenabruf für Akquise-KI: Browserbase (echter Browser) mit Fallback auf HTTP-fetch.
- *
- * Wichtig: Playwright und Browserbase werden nur dynamisch importiert (`import()`),
- * damit die Serverless-Funktion ohne diese Pakete startet, wenn nur HTTP-Fallback
- * genutzt wird oder native Module auf der Edge-Umgebung fehlschlagen.
+ * Nur Browserbase + Playwright (optional). Wird von api/analyse.ts per dynamischem import geladen.
  */
 
-import type { Browser } from 'playwright-core';
-
-function htmlZuKlartext(html: string): string {
-  return html
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-/** Klassischer HTTP-Abruf (kein JS). */
-export async function fetchSeiteHttp(url: string, timeoutMs = 12000): Promise<string> {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, {
-      signal: ctrl.signal,
-      redirect: 'follow',
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-        Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'de-DE,de;q=0.9,en;q=0.7',
-      },
-    });
-    clearTimeout(t);
-    if (!res.ok) return '';
-    const html = await res.text();
-    return htmlZuKlartext(html);
-  } catch {
-    clearTimeout(t);
-    return '';
-  }
-}
+import type { FetchMethod, GeladeneSeiten } from './analyse-fetch-lite';
+import { fetchSeiteHttp } from './analyse-fetch-lite';
 
 async function extrahiereSichtbarText(page: { evaluate: (fn: () => string) => Promise<string> }): Promise<string> {
   return page.evaluate(() => {
@@ -76,19 +38,15 @@ async function gotoUndText(
   return text;
 }
 
-export type FetchMethod = 'browserbase' | 'http';
-
-export interface GeladeneSeiten {
-  startseite: string;
-  impressum: string;
-  methode: FetchMethod;
-}
-
-async function ladePerBrowserbase(hauptUrl: string, impressumKandidaten: string[]): Promise<GeladeneSeiten | null> {
+/** Nur aufrufen wenn BROWSERBASE_API_KEY gesetzt — sonst null */
+export async function ladeMitBrowserbase(params: {
+  hauptUrl: string;
+  impressumKandidaten: string[];
+}): Promise<GeladeneSeiten | null> {
   const apiKey = process.env.BROWSERBASE_API_KEY?.trim();
   if (!apiKey) return null;
 
-  let browser: Browser | undefined;
+  let browser: { close: () => Promise<unknown> } | undefined;
 
   try {
     const [{ default: Browserbase }, { chromium }] = await Promise.all([
@@ -117,6 +75,8 @@ async function ladePerBrowserbase(hauptUrl: string, impressumKandidaten: string[
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
       }));
     const page = context.pages()[0] ?? (await context.newPage());
+
+    const { hauptUrl, impressumKandidaten } = params;
 
     let startseite = '';
     try {
@@ -159,48 +119,11 @@ async function ladePerBrowserbase(hauptUrl: string, impressumKandidaten: string[
     return {
       startseite: startseite.slice(0, 4500),
       impressum: impressum.slice(0, 2200),
-      methode: 'browserbase',
+      methode: 'browserbase' as FetchMethod,
     };
   } catch (e) {
     console.error('Browserbase:', e);
     await browser?.close().catch(() => {});
     return null;
   }
-}
-
-async function ladePerHttp(hauptUrl: string, impressumKandidaten: string[]): Promise<GeladeneSeiten> {
-  const startseite = (await fetchSeiteHttp(hauptUrl, 12000)).slice(0, 4500);
-  let impressum = '';
-  for (const url of impressumKandidaten) {
-    const t = await fetchSeiteHttp(url, 8000);
-    if (t.length > 100) {
-      impressum = t;
-      break;
-    }
-  }
-  return {
-    startseite,
-    impressum: impressum.slice(0, 2200),
-    methode: 'http',
-  };
-}
-
-/**
- * Startseite + erstes brauchbares Impressum.
- * Primär Browserbase (ein Browser, mehrere Navigations), sonst HTTP.
- */
-export async function ladeSeiteninhalte(params: {
-  hauptUrl: string;
-  impressumKandidaten: string[];
-}): Promise<GeladeneSeiten> {
-  const bb = await ladePerBrowserbase(params.hauptUrl, params.impressumKandidaten);
-  if (bb) {
-    const bbHatSubstanz = bb.startseite.length > 50 || bb.impressum.length > 50;
-    if (bbHatSubstanz) return bb;
-    const http = await ladePerHttp(params.hauptUrl, params.impressumKandidaten);
-    const httpBesser =
-      http.startseite.length > bb.startseite.length || http.impressum.length > bb.impressum.length;
-    return httpBesser ? http : bb;
-  }
-  return ladePerHttp(params.hauptUrl, params.impressumKandidaten);
 }
