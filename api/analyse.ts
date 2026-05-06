@@ -1,6 +1,47 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { ladeSeiteninhalte } from './analyse-page-fetch';
+import type { GeladeneSeiten } from './analyse-fetch-lite';
+import { ladeSeiteninhalteHttp } from './analyse-fetch-lite';
 import { basisAusUrl, normalisiereWebsiteUrl } from './url-normalize';
+
+function parseBody(req: VercelRequest): Record<string, unknown> {
+  const b = req.body as unknown;
+  if (b == null) return {};
+  if (typeof b === 'string') {
+    try {
+      const j = JSON.parse(b) as unknown;
+      return typeof j === 'object' && j !== null && !Array.isArray(j) ? (j as Record<string, unknown>) : {};
+    } catch {
+      return {};
+    }
+  }
+  if (typeof b === 'object' && !Array.isArray(b)) return b as Record<string, unknown>;
+  return {};
+}
+
+/** HTTP immer; Browserbase nur wenn API-Key gesetzt — lädt Playwright nicht statisch in den Hauptbundle. */
+async function ladeSeiteninhalteMitOptionalBb(params: {
+  hauptUrl: string;
+  impressumKandidaten: string[];
+}): Promise<GeladeneSeiten> {
+  const http = await ladeSeiteninhalteHttp(params);
+  if (!process.env.BROWSERBASE_API_KEY?.trim()) return http;
+
+  try {
+    const { ladeMitBrowserbase } = await import('./analyse-browserbase-optional');
+    const bb = await ladeMitBrowserbase(params);
+    if (!bb) return http;
+
+    const bbHatSubstanz = bb.startseite.length > 50 || bb.impressum.length > 50;
+    if (bbHatSubstanz) return bb;
+
+    const httpBesser =
+      http.startseite.length > bb.startseite.length || http.impressum.length > bb.impressum.length;
+    return httpBesser ? http : bb;
+  } catch (e) {
+    console.error('Browserbase optional:', e);
+    return http;
+  }
+}
 
 interface GeminiParsed {
   optimierungen?: unknown[];
@@ -19,7 +60,7 @@ function parseGeminiJson(rawText: string): GeminiParsed {
       try {
         return JSON.parse(match[0]) as GeminiParsed;
       } catch {
-        /* weiter unten Fallback */
+        /* Fallback unten */
       }
     }
     return {
@@ -31,7 +72,6 @@ function parseGeminiJson(rawText: string): GeminiParsed {
   }
 }
 
-/** Gemini JSON → einheitliche Optimierungen (String oder { titel, empfehlung }) */
 function optimierungenAusAntwort(raw: unknown[]): (string | { titel: string; empfehlung: string })[] {
   return raw.slice(0, 3).map(item => {
     if (item && typeof item === 'object' && item !== null && ('empfehlung' in item || 'titel' in item)) {
@@ -48,55 +88,54 @@ function optimierungenAusAntwort(raw: unknown[]): (string | { titel: string; emp
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { website, name, branche } = req.body as {
-    website: string;
-    name: string;
-    branche?: string;
-  };
+  try {
+    const body = parseBody(req);
+    const website = String(body.website ?? '');
+    const name = String(body.name ?? '');
+    const branche = body.branche != null ? String(body.branche) : '';
 
-  const GEMINI_KEY = process.env.GEMINI_API_KEY;
-  if (!GEMINI_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY nicht konfiguriert' });
+    const GEMINI_KEY = process.env.GEMINI_API_KEY;
+    if (!GEMINI_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY nicht konfiguriert' });
 
-  let hauptseite = '';
-  let impressum = '';
-  let fetchMethode: 'browserbase' | 'http' = 'http';
-  const hauptUrlNorm = normalisiereWebsiteUrl(website ?? '');
-  const hatWebsite = !!hauptUrlNorm;
+    let hauptseite = '';
+    let impressum = '';
+    let fetchMethode: 'browserbase' | 'http' = 'http';
+    const hauptUrlNorm = normalisiereWebsiteUrl(website);
+    const hatWebsite = !!hauptUrlNorm;
 
-  if (hatWebsite && hauptUrlNorm) {
-    const basis = basisAusUrl(hauptUrlNorm);
-    if (basis) {
-      const hauptUrl = hauptUrlNorm;
+    if (hatWebsite && hauptUrlNorm) {
+      const basis = basisAusUrl(hauptUrlNorm);
+      if (basis) {
+        const hauptUrl = hauptUrlNorm;
+        const impressumKandidaten = [
+          `${basis}/impressum`,
+          `${basis}/impressum.html`,
+          `${basis}/impressum.php`,
+          `${basis}/ueber-uns`,
+          `${basis}/kontakt`,
+          `${basis}/de/impressum`,
+          `${basis}/legal/imprint`,
+        ];
 
-      const impressumKandidaten = [
-        `${basis}/impressum`,
-        `${basis}/impressum.html`,
-        `${basis}/impressum.php`,
-        `${basis}/ueber-uns`,
-        `${basis}/kontakt`,
-        `${basis}/de/impressum`,
-        `${basis}/legal/imprint`,
-      ];
-
-      const geladen = await ladeSeiteninhalte({ hauptUrl, impressumKandidaten });
-      hauptseite = geladen.startseite;
-      impressum = geladen.impressum;
-      fetchMethode = geladen.methode;
+        const geladen = await ladeSeiteninhalteMitOptionalBb({ hauptUrl, impressumKandidaten });
+        hauptseite = geladen.startseite;
+        impressum = geladen.impressum;
+        fetchMethode = geladen.methode;
+      }
     }
-  }
 
-  const hatInhalt = hauptseite.length > 50 || impressum.length > 50;
+    const hatInhalt = hauptseite.length > 50 || impressum.length > 50;
 
-  const kontextHerkunft =
-    fetchMethode === 'browserbase'
-      ? 'Der Seiteninhalt wurde mit einem echten Browser geladen (sichtbarer Text wie für Nutzer).'
-      : 'Der Seiteninhalt wurde per HTTP abgerufen (ohne JavaScript; dynamische Inhalte können fehlen).';
+    const kontextHerkunft =
+      fetchMethode === 'browserbase'
+        ? 'Der Seiteninhalt wurde mit einem echten Browser geladen (sichtbarer Text wie für Nutzer).'
+        : 'Der Seiteninhalt wurde per HTTP abgerufen (ohne JavaScript; dynamische Inhalte können fehlen).';
 
-  const prompt = `Du bist ein erfahrener SEO- und Webdesign-Spezialist UND denkst gleichzeitig aus Sicht eines typischen Webseitenbesuchers (Handwerk/B2B).
+    const prompt = `Du bist ein erfahrener SEO- und Webdesign-Spezialist UND denkst gleichzeitig aus Sicht eines typischen Webseitenbesuchers (Handwerk/B2B).
 
 Unternehmen: ${name}
-Branche: ${branche ?? 'Unbekannt'}
-Website: ${hauptUrlNorm ?? website?.trim() || 'keine Website angegeben'}
+Branche: ${branche || 'Unbekannt'}
+Website: ${hauptUrlNorm ?? website.trim() || 'keine Website angegeben'}
 
 Technischer Kontext: ${kontextHerkunft}
 
@@ -130,7 +169,6 @@ Antworte ausschließlich als JSON (kein Markdown):
   "websiteGeladen": ${hatInhalt}
 }`;
 
-  try {
     const geminiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`,
       {
@@ -181,11 +219,13 @@ Antworte ausschließlich als JSON (kein Markdown):
       zusammenfassung: parsed.zusammenfassung ?? '',
       websiteGeladen: hatInhalt,
       analysiertAm: new Date().toISOString(),
-      /** Debug: wie die Seiten geladen wurden */
       seitenabrufMethode: fetchMethode,
     });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: 'Interner Fehler', detail: String(err) });
+    console.error('api/analyse:', err);
+    return res.status(500).json({
+      error: 'Interner Fehler bei der Analyse',
+      detail: err instanceof Error ? err.message : String(err),
+    });
   }
 }
