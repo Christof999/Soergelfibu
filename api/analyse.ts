@@ -1,5 +1,4 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import type { GeladeneSeiten } from './analyse-fetch-lite';
 import { ladeSeiteninhalteHttp } from './analyse-fetch-lite';
 import { basisAusUrl, normalisiereWebsiteUrl } from './url-normalize';
 
@@ -16,31 +15,6 @@ function parseBody(req: VercelRequest): Record<string, unknown> {
   }
   if (typeof b === 'object' && !Array.isArray(b)) return b as Record<string, unknown>;
   return {};
-}
-
-/** HTTP immer; Browserbase nur wenn API-Key gesetzt — lädt Playwright nicht statisch in den Hauptbundle. */
-async function ladeSeiteninhalteMitOptionalBb(params: {
-  hauptUrl: string;
-  impressumKandidaten: string[];
-}): Promise<GeladeneSeiten> {
-  const http = await ladeSeiteninhalteHttp(params);
-  if (!process.env.BROWSERBASE_API_KEY?.trim()) return http;
-
-  try {
-    const { ladeMitBrowserbase } = await import('./analyse-browserbase-optional');
-    const bb = await ladeMitBrowserbase(params);
-    if (!bb) return http;
-
-    const bbHatSubstanz = bb.startseite.length > 50 || bb.impressum.length > 50;
-    if (bbHatSubstanz) return bb;
-
-    const httpBesser =
-      http.startseite.length > bb.startseite.length || http.impressum.length > bb.impressum.length;
-    return httpBesser ? http : bb;
-  } catch (e) {
-    console.error('Browserbase optional:', e);
-    return http;
-  }
 }
 
 interface GeminiParsed {
@@ -99,7 +73,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     let hauptseite = '';
     let impressum = '';
-    let fetchMethode: 'browserbase' | 'http' = 'http';
+    const fetchMethode = 'http' as const;
     const hauptUrlNorm = normalisiereWebsiteUrl(website);
     const hatWebsite = !!hauptUrlNorm;
 
@@ -117,19 +91,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           `${basis}/legal/imprint`,
         ];
 
-        const geladen = await ladeSeiteninhalteMitOptionalBb({ hauptUrl, impressumKandidaten });
+        const geladen = await ladeSeiteninhalteHttp({ hauptUrl, impressumKandidaten });
         hauptseite = geladen.startseite;
         impressum = geladen.impressum;
-        fetchMethode = geladen.methode;
       }
     }
 
     const hatInhalt = hauptseite.length > 50 || impressum.length > 50;
 
     const kontextHerkunft =
-      fetchMethode === 'browserbase'
-        ? 'Der Seiteninhalt wurde mit einem echten Browser geladen (sichtbarer Text wie für Nutzer).'
-        : 'Der Seiteninhalt wurde per HTTP abgerufen (ohne JavaScript; dynamische Inhalte können fehlen).';
+      'Der Seiteninhalt wurde per HTTP abgerufen (ohne JavaScript; dynamische Inhalte können fehlen).';
 
     const prompt = `Du bist ein erfahrener SEO- und Webdesign-Spezialist UND denkst gleichzeitig aus Sicht eines typischen Webseitenbesuchers (Handwerk/B2B).
 
