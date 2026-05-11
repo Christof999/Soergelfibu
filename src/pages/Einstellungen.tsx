@@ -69,22 +69,22 @@ export default function Einstellungen() {
         title="Einstellungen"
         subtitle="Firmendaten und App-Konfiguration"
         actions={
-          <div className="flex gap-2">
-            <button onClick={handleImport} className="flex items-center gap-2 px-4 py-2 text-sm border border-dark-700 rounded-lg text-gray-400 hover:bg-dark-700 hover:text-gray-200 transition-colors">
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <button type="button" onClick={handleImport} className="flex items-center justify-center gap-2 px-4 py-2 text-sm border border-dark-700 rounded-lg text-gray-400 hover:bg-dark-700 hover:text-gray-200 transition-colors">
               <Upload size={15} /> Importieren
             </button>
-            <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 text-sm border border-dark-700 rounded-lg text-gray-400 hover:bg-dark-700 hover:text-gray-200 transition-colors">
+            <button type="button" onClick={handleExport} className="flex items-center justify-center gap-2 px-4 py-2 text-sm border border-dark-700 rounded-lg text-gray-400 hover:bg-dark-700 hover:text-gray-200 transition-colors">
               <Download size={15} /> Exportieren
             </button>
           </div>
         }
       />
 
-      <div className="p-8">
+      <div className="page-padding">
         <form onSubmit={handleSubmit(onSubmit)}>
-          <div className="bg-dark-800 rounded-2xl border border-dark-700 p-6">
+          <div className="bg-dark-800 rounded-2xl border border-dark-700 p-4 sm:p-6">
             {section('Firmeninformationen')}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {field('Firmenname', 'name')}
               {field('Inhaber', 'inhaber')}
               {field('E-Mail', 'email', 'email')}
@@ -95,7 +95,7 @@ export default function Einstellungen() {
             </div>
 
             {section('Adresse')}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {field('Straße', 'strasse')}
               {field('PLZ', 'plz')}
               {field('Ort', 'ort')}
@@ -103,7 +103,7 @@ export default function Einstellungen() {
             <div className="mt-4">{field('Land', 'land')}</div>
 
             {section('Bankverbindung')}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {field('IBAN', 'iban')}
               {field('BIC', 'bic')}
               {field('Bank', 'bank')}
@@ -113,7 +113,7 @@ export default function Einstellungen() {
             <div>{field('Termin-Link (Cal.com, Calendly…)', 'terminUrl')}</div>
 
             {section('Nummerierung')}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {field('Angebots-Präfix (z.B. ANG)', 'angebotPrefix')}
               {field('Rechnungs-Präfix (z.B. RE)', 'rechnungPrefix')}
               <div>

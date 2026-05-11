@@ -98,7 +98,7 @@ function PositionRow({
           </div>
           {/* Dropdown – fixed Breite, kein Overflow-Clipping */}
           {open && (
-            <div className="absolute z-50 top-full left-0 mt-1 bg-dark-800 border border-dark-700 rounded-xl shadow-2xl w-80 max-h-52 overflow-y-auto scrollbar-thin">
+            <div className="absolute z-50 top-full left-0 right-0 sm:right-auto mt-1 bg-dark-800 border border-dark-700 rounded-xl shadow-2xl w-full sm:w-80 max-h-52 overflow-y-auto scrollbar-thin">
               {artikel.map(a => (
                 <button
                   key={a.id}
@@ -128,9 +128,9 @@ function PositionRow({
         </button>
       </div>
 
-      {/* Zeile 2: Menge / Einheit / Einzelpreis / MwSt / Rabatt / Gesamt */}
-      <div className="flex items-center gap-2 pl-7">
-        <div className="flex flex-col gap-0.5 w-16">
+      {/* Zeile 2: Menge / Einheit / Einzelpreis / MwSt / Rabatt / Gesamt — auf schmalen Viewports umbrechen */}
+      <div className="flex flex-wrap items-end gap-x-2 gap-y-3 pl-0 sm:pl-7">
+        <div className="flex flex-col gap-0.5 w-[calc(50%-0.25rem)] min-[480px]:w-16">
           <span className="text-xs text-gray-500">Menge</span>
           <input
             type="number" min="0" step="0.01"
@@ -139,7 +139,7 @@ function PositionRow({
             className={`${cellInput} text-right`}
           />
         </div>
-        <div className="flex flex-col gap-0.5 w-16">
+        <div className="flex flex-col gap-0.5 w-[calc(50%-0.25rem)] min-[480px]:w-20">
           <span className="text-xs text-gray-500">Einheit</span>
           <input
             value={pos.einheit}
@@ -147,7 +147,7 @@ function PositionRow({
             className={cellInput}
           />
         </div>
-        <div className="flex flex-col gap-0.5 flex-1">
+        <div className="flex flex-col gap-0.5 flex-1 min-w-[8rem]">
           <span className="text-xs text-gray-500">Einzelpreis (€)</span>
           <input
             type="number" min="0" step="0.01"
@@ -156,7 +156,7 @@ function PositionRow({
             className={`${cellInput} text-right`}
           />
         </div>
-        <div className="flex flex-col gap-0.5 w-16">
+        <div className="flex flex-col gap-0.5 w-[calc(50%-0.25rem)] min-[480px]:w-16">
           <span className="text-xs text-gray-500">MwSt.</span>
           <select
             value={pos.mwstSatz}
@@ -168,7 +168,7 @@ function PositionRow({
             <option value={0}>0%</option>
           </select>
         </div>
-        <div className="flex flex-col gap-0.5 w-16">
+        <div className="flex flex-col gap-0.5 w-[calc(50%-0.25rem)] min-[480px]:w-16">
           <span className="text-xs text-gray-500">Rabatt%</span>
           <input
             type="number" min="0" max="100" step="0.5"
@@ -177,9 +177,9 @@ function PositionRow({
             className={`${cellInput} text-right`}
           />
         </div>
-        <div className="flex flex-col gap-0.5 text-right shrink-0">
+        <div className="flex flex-col gap-0.5 text-right shrink-0 ml-auto w-full min-[480px]:w-auto min-[480px]:ml-0">
           <span className="text-xs text-gray-500">Gesamt</span>
-          <span className="text-xs font-semibold text-gray-200 py-1.5">{fmtEur(netto)}</span>
+          <span className="text-xs font-semibold text-gray-200 py-1.5 tabular-nums">{fmtEur(netto)}</span>
         </div>
       </div>
     </div>
@@ -229,8 +229,8 @@ export default function DokumentEditor({ typ, initial, onSave, onCancel }: Props
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
       {/* Kopfdaten */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="col-span-2 sm:col-span-1">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="sm:col-span-1">
           <label className="block text-xs font-medium text-gray-400 mb-1">Kunde *</label>
           <select {...register('kundeId', { required: true })} className={inputCls}>
             <option value="">– Kunde wählen –</option>
@@ -239,7 +239,7 @@ export default function DokumentEditor({ typ, initial, onSave, onCancel }: Props
             ))}
           </select>
         </div>
-        <div className="col-span-2 sm:col-span-1">
+        <div className="sm:col-span-2">
           <label className="block text-xs font-medium text-gray-400 mb-1">Betreff</label>
           <input {...register('betreff')} className={inputCls} />
         </div>
@@ -314,8 +314,8 @@ export default function DokumentEditor({ typ, initial, onSave, onCancel }: Props
 
         {/* Summen */}
         {positionen.length > 0 && (
-          <div className="flex justify-end mt-3">
-            <div className="w-56 space-y-1 text-sm">
+          <div className="flex justify-stretch sm:justify-end mt-3">
+            <div className="w-full sm:w-56 space-y-1 text-sm max-w-md ml-auto">
               <div className="flex justify-between text-gray-400">
                 <span>Netto:</span><span>{fmtEur(netto)}</span>
               </div>
@@ -341,11 +341,11 @@ export default function DokumentEditor({ typ, initial, onSave, onCancel }: Props
         />
       </div>
 
-      <div className="flex justify-end gap-3 pt-2 border-t border-dark-700">
-        <button type="button" onClick={onCancel} className="px-4 py-2 text-sm rounded-lg border border-dark-700 text-gray-400 hover:bg-dark-700 hover:text-gray-200 transition-colors">
+      <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-2 border-t border-dark-700">
+        <button type="button" onClick={onCancel} className="w-full sm:w-auto px-4 py-2 text-sm rounded-lg border border-dark-700 text-gray-400 hover:bg-dark-700 hover:text-gray-200 transition-colors">
           Abbrechen
         </button>
-        <button type="submit" className="px-4 py-2 text-sm rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-colors font-medium">
+        <button type="submit" className="w-full sm:w-auto px-4 py-2 text-sm rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-colors font-medium">
           {typLabel} speichern
         </button>
       </div>

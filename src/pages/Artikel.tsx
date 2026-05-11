@@ -52,7 +52,7 @@ function ArtikelForm({
           className={`${inputCls} resize-none`}
         />
       </div>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
           <label className="block text-xs font-medium text-gray-400 mb-1">Preis (netto) *</label>
           <input
@@ -141,7 +141,7 @@ export default function ArtikelPage() {
         }
       />
 
-      <div className="p-8 space-y-4">
+      <div className="page-padding space-y-4">
         <div className="relative">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input
@@ -163,46 +163,76 @@ export default function ArtikelPage() {
             )}
           </div>
         ) : (
-          <div className="bg-dark-800 rounded-2xl border border-dark-700 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-dark-900/60 text-left border-b border-dark-700">
-                  <th className="px-5 py-3 text-xs font-semibold text-gray-500">Nr.</th>
-                  <th className="px-5 py-3 text-xs font-semibold text-gray-500">Bezeichnung</th>
-                  <th className="px-5 py-3 text-xs font-semibold text-gray-500">Kategorie</th>
-                  <th className="px-5 py-3 text-xs font-semibold text-gray-500">Einheit</th>
-                  <th className="px-5 py-3 text-xs font-semibold text-gray-500 text-right">Preis (netto)</th>
-                  <th className="px-5 py-3 text-xs font-semibold text-gray-500 text-right">MwSt.</th>
-                  <th className="px-5 py-3 text-xs font-semibold text-gray-500 text-right">Aktionen</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-dark-700">
-                {filtered.map(a => (
-                  <tr key={a.id} className="hover:bg-dark-700/50 transition-colors">
-                    <td className="px-5 py-3 text-gray-500 font-mono text-xs">{a.artikelnummer}</td>
-                    <td className="px-5 py-3">
-                      <p className="font-medium text-gray-200">{a.bezeichnung}</p>
-                      {a.beschreibung && <p className="text-xs text-gray-500 mt-0.5 truncate max-w-xs">{a.beschreibung}</p>}
-                    </td>
-                    <td className="px-5 py-3 text-gray-400">{a.kategorie || '–'}</td>
-                    <td className="px-5 py-3 text-gray-400">{a.einheit}</td>
-                    <td className="px-5 py-3 text-right font-semibold text-gray-200">{fmtEur(a.preis)}</td>
-                    <td className="px-5 py-3 text-right text-gray-400">{a.mwstSatz}%</td>
-                    <td className="px-5 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openEdit(a)} className="p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors">
-                          <Pencil size={14} />
-                        </button>
-                        <button onClick={() => setDeleteId(a.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors">
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
+          <>
+            <div className="hidden md:block bg-dark-800 rounded-2xl border border-dark-700 overflow-hidden overflow-x-auto">
+              <table className="w-full text-sm min-w-[640px]">
+                <thead>
+                  <tr className="bg-dark-900/60 text-left border-b border-dark-700">
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-500">Nr.</th>
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-500">Bezeichnung</th>
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-500">Kategorie</th>
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-500">Einheit</th>
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-500 text-right">Preis (netto)</th>
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-500 text-right">MwSt.</th>
+                    <th className="px-5 py-3 text-xs font-semibold text-gray-500 text-right">Aktionen</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-dark-700">
+                  {filtered.map(a => (
+                    <tr key={a.id} className="hover:bg-dark-700/50 transition-colors">
+                      <td className="px-5 py-3 text-gray-500 font-mono text-xs whitespace-nowrap">{a.artikelnummer}</td>
+                      <td className="px-5 py-3 max-w-[16rem]">
+                        <p className="font-medium text-gray-200 break-words">{a.bezeichnung}</p>
+                        {a.beschreibung && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{a.beschreibung}</p>}
+                      </td>
+                      <td className="px-5 py-3 text-gray-400">{a.kategorie || '–'}</td>
+                      <td className="px-5 py-3 text-gray-400">{a.einheit}</td>
+                      <td className="px-5 py-3 text-right font-semibold text-gray-200 tabular-nums">{fmtEur(a.preis)}</td>
+                      <td className="px-5 py-3 text-right text-gray-400">{a.mwstSatz}%</td>
+                      <td className="px-5 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button type="button" onClick={() => openEdit(a)} className="p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors">
+                            <Pencil size={14} />
+                          </button>
+                          <button type="button" onClick={() => setDeleteId(a.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <ul className="md:hidden space-y-3">
+              {filtered.map(a => (
+                <li key={a.id} className="bg-dark-800 border border-dark-700 rounded-2xl p-4 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-mono text-xs text-gray-500">{a.artikelnummer}</p>
+                      <p className="text-sm font-semibold text-gray-100 mt-0.5 break-words">{a.bezeichnung}</p>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      <button type="button" onClick={() => openEdit(a)} className="p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors">
+                        <Pencil size={14} />
+                      </button>
+                      <button type="button" onClick={() => setDeleteId(a.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                  {a.beschreibung && <p className="text-xs text-gray-500 line-clamp-3">{a.beschreibung}</p>}
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-400 pt-1 border-t border-dark-700">
+                    <span>{a.kategorie || '–'}</span>
+                    <span>{a.einheit}</span>
+                    <span className="text-gray-200 font-semibold tabular-nums">{fmtEur(a.preis)} netto</span>
+                    <span>MwSt. {a.mwstSatz}%</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </div>
 
