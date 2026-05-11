@@ -53,7 +53,9 @@ const inputCls = "w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2
 
 function AngebotPositionen({ angebot }: { angebot: NonNullable<ReturnType<typeof useApp>['data']['dokumente'][0]> }) {
   const [open, setOpen] = useState(false);
-  const { netto, mwstBetrag, brutto } = berechneGesamtsummen(angebot.positionen);
+  const { data } = useApp();
+  const ku = !!data.firma.kleinunternehmerRegelung;
+  const { netto, mwstBetrag, brutto } = berechneGesamtsummen(angebot.positionen, ku);
 
   return (
     <div className="bg-dark-800 border border-dark-700 rounded-2xl overflow-hidden">
@@ -87,11 +89,11 @@ function AngebotPositionen({ angebot }: { angebot: NonNullable<ReturnType<typeof
                 <div className="col-span-1 text-right">Menge</div>
                 <div className="col-span-1">Einheit</div>
                 <div className="col-span-2 text-right">Einzelpreis</div>
-                <div className="col-span-1 text-right">MwSt.</div>
-                <div className="col-span-2 text-right">Gesamt</div>
+                <div className="col-span-1 text-right">{ku ? '–' : 'MwSt.'}</div>
+                <div className="col-span-2 text-right">{ku ? 'Betrag' : 'Gesamt'}</div>
               </div>
               {angebot.positionen.map((pos, idx) => {
-                const { netto: posNetto } = berechneZeile(pos);
+                const { netto: posNetto } = berechneZeile(pos, ku);
                 return (
                   <div key={pos.id} className="grid grid-cols-12 gap-2 px-5 py-3 border-t border-dark-700 text-sm hover:bg-dark-700/30 transition-colors">
                     <div className="col-span-1 text-gray-500 text-xs pt-0.5">{idx + 1}</div>
@@ -103,7 +105,12 @@ function AngebotPositionen({ angebot }: { angebot: NonNullable<ReturnType<typeof
                     <div className="col-span-1 text-gray-400 text-xs pt-0.5">{pos.einheit}</div>
                     <div className="col-span-2 text-right text-gray-300">{fmtEur(pos.einzelpreis)}</div>
                     <div className="col-span-1 text-right text-gray-400 text-xs pt-0.5">
-                      {pos.mwstSatz}%{pos.rabatt > 0 && <span className="block text-amber-400">-{pos.rabatt}%</span>}
+                      {ku ? '–' : (
+                        <>
+                          {pos.mwstSatz}%
+                          {pos.rabatt > 0 && <span className="block text-amber-400">-{pos.rabatt}%</span>}
+                        </>
+                      )}
                     </div>
                     <div className="col-span-2 text-right font-semibold text-gray-200">{fmtEur(posNetto)}</div>
                   </div>
@@ -112,11 +119,13 @@ function AngebotPositionen({ angebot }: { angebot: NonNullable<ReturnType<typeof
               {/* Summen */}
               <div className="border-t border-dark-700 px-5 py-3 space-y-1">
                 <div className="flex justify-end gap-8 text-xs text-gray-400">
-                  <span>Netto: <span className="text-gray-300 font-medium">{fmtEur(netto)}</span></span>
-                  <span>MwSt.: <span className="text-gray-300 font-medium">{fmtEur(mwstBetrag)}</span></span>
+                  <span>{ku ? 'Zwischensumme:' : 'Netto:'} <span className="text-gray-300 font-medium">{fmtEur(netto)}</span></span>
+                  {!ku && (
+                    <span>MwSt.: <span className="text-gray-300 font-medium">{fmtEur(mwstBetrag)}</span></span>
+                  )}
                 </div>
                 <div className="flex justify-end text-sm font-bold text-gray-100">
-                  Gesamt: <span className="ml-4 text-primary-400">{fmtEur(brutto)}</span>
+                  {ku ? 'Gesamtbetrag:' : 'Gesamt:'} <span className="ml-4 text-primary-400">{fmtEur(brutto)}</span>
                 </div>
               </div>
             </>
@@ -224,7 +233,7 @@ function UploadZone({
     Array.from(files).forEach(file => {
       const id = uuidv4();
       // Dateinamen bereinigen (Leerzeichen → Unterstrich, Sonderzeichen entfernen)
-      const safeName = file.name.replace(/\s+/g, '_').replace(/[^\w.\-]/g, '');
+      const safeName = file.name.replace(/\s+/g, '_').replace(/[^\w.-]/g, '');
       const path = `projects/${user.uid}/${projektId}/${komId}/${id}_${safeName}`;
       const storageRef = ref(storage, path);
 

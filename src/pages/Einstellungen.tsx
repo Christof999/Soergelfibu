@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { Save, Download, Upload } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
@@ -7,9 +8,13 @@ import { Firma, AppData } from '../types';
 export default function Einstellungen() {
   const { data, updateFirma, exportData, importData } = useApp();
 
-  const { register, handleSubmit } = useForm<Firma>({
+  const { register, handleSubmit, reset } = useForm<Firma>({
     defaultValues: data.firma,
   });
+
+  useEffect(() => {
+    reset(data.firma);
+  }, [data.firma, reset]);
 
   const onSubmit = async (formData: Firma) => {
     await updateFirma({ ...data.firma, ...formData });
@@ -107,6 +112,22 @@ export default function Einstellungen() {
               {field('IBAN', 'iban')}
               {field('BIC', 'bic')}
               {field('Bank', 'bank')}
+            </div>
+
+            {section('Steuern / Buchführung')}
+            <div className="flex items-start gap-3 rounded-xl border border-dark-700 bg-dark-900/40 px-4 py-3">
+              <input
+                type="checkbox"
+                id="kleinunternehmerRegelung"
+                {...register('kleinunternehmerRegelung')}
+                className="mt-1 rounded border-dark-600 text-primary-500 focus:ring-primary-500"
+              />
+              <label htmlFor="kleinunternehmerRegelung" className="text-sm text-gray-300 leading-snug cursor-pointer">
+                <span className="font-medium text-gray-200">Kleinunternehmerregelung (§ 19 UStG)</span>
+                <span className="block text-xs text-gray-500 mt-1">
+                  Keine Umsatzsteuer auf Angeboten und Rechnungen ausweisen; Einzelpreise gelten als Endbetrag. Auf PDFs erscheint der gesetzliche Hinweis.
+                </span>
+              </label>
             </div>
 
             {section('Akquise')}
