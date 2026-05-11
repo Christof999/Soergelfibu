@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { Save, Download, Upload } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
@@ -7,9 +8,13 @@ import { Firma, AppData } from '../types';
 export default function Einstellungen() {
   const { data, updateFirma, exportData, importData } = useApp();
 
-  const { register, handleSubmit } = useForm<Firma>({
+  const { register, handleSubmit, reset } = useForm<Firma>({
     defaultValues: data.firma,
   });
+
+  useEffect(() => {
+    reset(data.firma);
+  }, [data.firma, reset]);
 
   const onSubmit = async (formData: Firma) => {
     await updateFirma({ ...data.firma, ...formData });
@@ -111,6 +116,20 @@ export default function Einstellungen() {
 
             {section('Akquise')}
             <div>{field('Termin-Link (Cal.com, Calendly…)', 'terminUrl')}</div>
+
+            {section('Dashboard')}
+            <p className="text-xs text-gray-500 mb-2">Grobe Steuerschätzung auf den Gewinn (Umsatz bezahlt minus Fibu-Ausgaben), nur für die Kachel „Gewinn nach Steuer“.</p>
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1">Geschätzter Steuersatz auf Gewinn (%)</label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.5"
+                {...register('dashboardSteuerSchaetzungProzent', { valueAsNumber: true })}
+                className={inputCls}
+              />
+            </div>
 
             {section('Nummerierung')}
             <div className="grid grid-cols-2 gap-4">
