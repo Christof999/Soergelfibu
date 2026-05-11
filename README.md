@@ -29,13 +29,18 @@ npm install
 npm run dev
 ```
 
+Die Firebase-Web-Konfiguration wird ausschliesslich ueber Umgebungsvariablen geladen.
+Kopiere fuer lokale Entwicklung bei Bedarf `.env.example` nach `.env.local` oder ziehe
+die in Vercel hinterlegten Werte mit `vercel env pull .env.local`.
+
 ## Deployment auf Vercel
 
 1. Repository mit Vercel verbinden
 2. Framework: **Vite**
 3. Build-Befehl: `npm run build`
 4. Output-Verzeichnis: `dist`
-5. Die `vercel.json` sorgt für korrektes SPA-Routing
+5. Firebase-Variablen im Vercel-Projekt unter **Settings -> Environment Variables** setzen
+6. Die `vercel.json` sorgt für korrektes SPA-Routing
 
 ## Daten
 
