@@ -4,6 +4,7 @@ import { Plus, Trash2, ChevronDown } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { Dokument, Dokumentposition, DokumentTyp, Artikel } from '../types';
 import { berechneGesamtsummen, fmtEur } from '../utils/berechnungen';
+import { KLEINUNTERNEHMER_HINWEIS_USTG } from '../utils/steuern';
 import { useApp } from '../context/AppContext';
 import { format } from 'date-fns';
 
@@ -206,7 +207,7 @@ export default function DokumentEditor({ typ, initial, onSave, onCancel }: Props
   const typLabel = typ === 'angebot' ? 'Angebot' : 'Rechnung';
   const today = format(new Date(), 'yyyy-MM-dd');
 
-  const { register, handleSubmit } = useForm<DokumentForm>({
+  const { register, handleSubmit, reset } = useForm<DokumentForm>({
     defaultValues: {
       kundeId: initial?.kundeId ?? '',
       datum: initial?.datum?.slice(0, 10) ?? today,
@@ -223,6 +224,24 @@ export default function DokumentEditor({ typ, initial, onSave, onCancel }: Props
   const [positionen, setPositionen] = useState<Dokumentposition[]>(
     initial?.positionen ?? []
   );
+
+  useEffect(() => {
+    const d = format(new Date(), 'yyyy-MM-dd');
+    reset({
+      kundeId: initial?.kundeId ?? '',
+      datum: initial?.datum?.slice(0, 10) ?? d,
+      gueltigBis: initial?.gueltigBis?.slice(0, 10) ?? '',
+      faelligAm: initial?.faelligAm?.slice(0, 10) ?? '',
+      betreff: initial?.betreff ?? '',
+      notizen: initial?.notizen ?? '',
+      zahlungsziel: initial?.zahlungsziel ?? 14,
+      skonto: initial?.skonto ?? 0,
+      status: initial?.status ?? 'entwurf',
+    });
+    setPositionen(initial?.positionen ?? []);
+    // Formular nur bei anderem Datensatz oder Typ zurücksetzen (kein Deep-Tracking von `initial`)
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- bewusst nur initial?.id + typ
+  }, [initial?.id, typ, reset]);
 
   const addPosition = () =>
     setPositionen(prev => [
@@ -348,7 +367,7 @@ export default function DokumentEditor({ typ, initial, onSave, onCancel }: Props
               </div>
               {ku && (
                 <p className="text-[10px] text-gray-600 leading-snug pt-1">
-                  Kleinunternehmerregelung § 19 UStG — ohne Umsatzsteuerausweis.
+                  {KLEINUNTERNEHMER_HINWEIS_USTG}
                 </p>
               )}
             </div>

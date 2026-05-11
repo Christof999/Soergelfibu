@@ -3,7 +3,7 @@ import Modal from './Modal';
 interface Props {
   open: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   title: string;
   message: string;
 }
@@ -17,7 +17,16 @@ export default function ConfirmDialog({ open, onClose, onConfirm, title, message
           Abbrechen
         </button>
         <button
-          onClick={() => { onConfirm(); onClose(); }}
+          type="button"
+          onClick={async () => {
+            try {
+              await Promise.resolve(onConfirm());
+              onClose();
+            } catch (e) {
+              console.error(e);
+              alert(e instanceof Error ? e.message : 'Die Aktion ist fehlgeschlagen.');
+            }
+          }}
           className="px-4 py-2 text-sm rounded-lg bg-red-700 text-white hover:bg-red-600 transition-colors"
         >
           Löschen

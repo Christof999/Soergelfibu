@@ -170,6 +170,13 @@ export function generatePDF(dokument: Dokument, firma: Firma, kunde: Kunde) {
     doc.line(sumX, sy, pageWidth - margin, sy);
     sy += 5;
     addSumRow('Gesamtbetrag:', fmtEur(brutto), true, ANTHRAZIT);
+    sy += 4;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(55, 55, 55);
+    const kuHinweisLines = doc.splitTextToSize(KLEINUNTERNEHMER_HINWEIS_USTG, pageWidth - 2 * margin);
+    doc.text(kuHinweisLines, margin, sy);
+    sy += kuHinweisLines.length * 4 + 2;
   } else {
     addSumRow('Nettobetrag:', fmtEur(netto));
 
@@ -218,14 +225,6 @@ export function generatePDF(dokument: Dokument, firma: Firma, kunde: Kunde) {
     doc.setTextColor(30, 30, 30);
     doc.text(`IBAN: ${firma.iban}  |  BIC: ${firma.bic}  |  ${firma.bank}`, margin, footY);
     footY += 8;
-  }
-
-  if (ku) {
-    doc.setFontSize(8);
-    doc.setTextColor(60, 60, 60);
-    const kuLines = doc.splitTextToSize(KLEINUNTERNEHMER_HINWEIS_USTG, pageWidth - 2 * margin);
-    doc.text(kuLines, margin, footY);
-    footY += kuLines.length * 4 + 6;
   }
 
   // Fußzeile

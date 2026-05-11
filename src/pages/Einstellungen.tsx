@@ -4,11 +4,12 @@ import { Save, Download, Upload } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import { useApp } from '../context/AppContext';
 import { Firma, AppData } from '../types';
+import { KLEINUNTERNEHMER_HINWEIS_USTG } from '../utils/steuern';
 
 export default function Einstellungen() {
   const { data, updateFirma, exportData, importData } = useApp();
 
-  const { register, handleSubmit, reset } = useForm<Firma>({
+  const { register, handleSubmit, reset, getValues } = useForm<Firma>({
     defaultValues: data.firma,
   });
 
@@ -17,7 +18,11 @@ export default function Einstellungen() {
   }, [data.firma, reset]);
 
   const onSubmit = async (formData: Firma) => {
-    await updateFirma({ ...data.firma, ...formData });
+    await updateFirma({
+      ...data.firma,
+      ...formData,
+      kleinunternehmerRegelung: !!getValues('kleinunternehmerRegelung'),
+    });
     alert('Einstellungen gespeichert.');
   };
 
@@ -125,7 +130,7 @@ export default function Einstellungen() {
               <label htmlFor="kleinunternehmerRegelung" className="text-sm text-gray-300 leading-snug cursor-pointer">
                 <span className="font-medium text-gray-200">Kleinunternehmerregelung (§ 19 UStG)</span>
                 <span className="block text-xs text-gray-500 mt-1">
-                  Keine Umsatzsteuer auf Angeboten und Rechnungen ausweisen; Einzelpreise gelten als Endbetrag. Auf PDFs erscheint der gesetzliche Hinweis.
+                  {`Keine gesonderte Umsatzsteuer auf Angeboten und Rechnungen; Einzelpreise sind Endpreise. Auf PDFs erscheint: „${KLEINUNTERNEHMER_HINWEIS_USTG}“`}
                 </span>
               </label>
             </div>

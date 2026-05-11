@@ -2,8 +2,6 @@ import { useApp } from '../context/AppContext';
 import { fmtEur, berechneGesamtsummen } from '../utils/berechnungen';
 import { Link } from 'react-router-dom';
 import {
-  Users,
-  Package,
   FileText,
   Receipt,
   TrendingUp,
@@ -20,10 +18,9 @@ import { de } from 'date-fns/locale';
 export default function Dashboard() {
   const { data } = useApp();
   const ku = !!data.firma.kleinunternehmerRegelung;
-  const { kunden, artikel, dokumente, firma } = data;
+  const { kunden, dokumente, firma } = data;
   const eingangsrechnungen = data.eingangsrechnungen ?? [];
 
-  const angebote = dokumente.filter(d => d.typ === 'angebot');
   const rechnungen = dokumente.filter(d => d.typ === 'rechnung');
   const offeneRechnungen = rechnungen.filter(d => d.status !== 'bezahlt' && d.status !== 'storniert');
   const bezahlteRechnungen = rechnungen.filter(d => d.status === 'bezahlt');
@@ -39,13 +36,6 @@ export default function Dashboard() {
   const recentDocs = [...dokumente]
     .sort((a, b) => new Date(b.erstelltAm).getTime() - new Date(a.erstelltAm).getTime())
     .slice(0, 5);
-
-  const stats = [
-    { label: 'Kunden', value: kunden.length, icon: Users, color: 'bg-blue-900/50 text-blue-300', link: '/kunden' },
-    { label: 'Artikel', value: artikel.length, icon: Package, color: 'bg-violet-900/50 text-violet-300', link: '/artikel' },
-    { label: 'Angebote', value: angebote.length, icon: FileText, color: 'bg-amber-900/50 text-amber-300', link: '/angebote' },
-    { label: 'Rechnungen', value: rechnungen.length, icon: Receipt, color: 'bg-emerald-900/50 text-emerald-300', link: '/rechnungen' },
-  ];
 
   return (
     <div className="p-8 space-y-8">
@@ -120,23 +110,6 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
-        {stats.map(({ label, value, icon: Icon, color, link }) => (
-          <Link
-            key={label}
-            to={link}
-            className="bg-dark-800 rounded-2xl p-5 border border-dark-700 hover:border-dark-200/20 hover:bg-dark-800/80 transition-all"
-          >
-            <div className={`w-10 h-10 rounded-xl ${color} flex items-center justify-center mb-3`}>
-              <Icon size={20} />
-            </div>
-            <p className="text-2xl font-bold text-gray-100">{value}</p>
-            <p className="text-sm text-gray-500 mt-0.5">{label}</p>
-          </Link>
-        ))}
       </div>
 
       {/* Letzte Dokumente */}

@@ -123,7 +123,7 @@ export default function DokumentList({ typ }: Props) {
         }
       />
 
-      <div className="p-8 space-y-4">
+      <div className="px-4 py-6 sm:px-8 sm:py-8 space-y-4 min-w-0">
         <div className="relative">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input
@@ -145,8 +145,8 @@ export default function DokumentList({ typ }: Props) {
             )}
           </div>
         ) : (
-          <div className="bg-dark-800 rounded-2xl border border-dark-700 overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="bg-dark-800 rounded-2xl border border-dark-700 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+            <table className="w-full text-sm min-w-[56rem]">
               <thead>
                 <tr className="bg-dark-900/60 text-left border-b border-dark-700">
                   <th className="px-5 py-3 text-xs font-semibold text-gray-500">Nummer</th>
@@ -225,13 +225,21 @@ export default function DokumentList({ typ }: Props) {
       </div>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editDoc ? `${typLabel} bearbeiten` : `Neues ${typLabel}`} size="xl">
-        <DokumentEditor typ={typ} initial={editDoc ?? undefined} onSave={handleSave} onCancel={() => setModalOpen(false)} />
+        <DokumentEditor
+          key={editDoc?.id ?? `neu-${typ}`}
+          typ={typ}
+          initial={editDoc ?? undefined}
+          onSave={handleSave}
+          onCancel={() => setModalOpen(false)}
+        />
       </Modal>
 
       <ConfirmDialog
         open={!!deleteId}
         onClose={() => setDeleteId(null)}
-        onConfirm={() => deleteDokument(deleteId!)}
+        onConfirm={async () => {
+          await deleteDokument(deleteId!);
+        }}
         title={`${typLabel} löschen`}
         message={`Soll dieses ${typLabel} wirklich gelöscht werden?`}
       />
