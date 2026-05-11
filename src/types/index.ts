@@ -87,6 +87,11 @@ export interface Firma {
   nextAngebotNr: number;
   nextRechnungNr: number;
   terminUrl: string;
+  /**
+   * Geschätzte Gesamt-Steuerlast auf den Gewinn (Umsatz − Ausgaben), in %.
+   * Nur für die Dashboard-Anzeige — keine Steuerberatung.
+   */
+  dashboardSteuerSchaetzungProzent: number;
 }
 
 // ─── Projektmanagement ────────────────────────────────────────────────────────
@@ -169,6 +174,23 @@ export interface Lead {
   erstelltAm: string;
 }
 
+/** Eingehende Rechnung (Zahlungsverpflichtung) für Fibu / Steuer */
+export interface Eingangsrechnung {
+  id: string;
+  lieferant: string;
+  rechnungsnummer: string;
+  /** Bruttobetrag in EUR */
+  betragBrutto: number;
+  /** Fälligkeitsdatum (ISO yyyy-mm-dd), Gruppierung nach Monat */
+  faelligAm: string;
+  notizen: string;
+  erstelltAm: string;
+  /** Öffentliche Download-URL der Original-PDF in Firebase Storage */
+  pdfUrl?: string;
+  /** Pfad in Storage (z. B. fibu/{uid}/{id}.pdf) — zum Löschen */
+  pdfStoragePath?: string;
+}
+
 export interface AppData {
   firma: Firma;
   kunden: Kunde[];
@@ -176,4 +198,5 @@ export interface AppData {
   dokumente: Dokument[];
   projekte: Projekt[];
   leads: Lead[];
+  eingangsrechnungen: Eingangsrechnung[];
 }

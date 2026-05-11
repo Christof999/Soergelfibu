@@ -13,6 +13,7 @@ import {
   CloudOff,
   FolderKanban,
   Telescope,
+  Wallet,
   Menu,
   X,
 } from 'lucide-react';
@@ -27,6 +28,7 @@ const navItems = [
   { to: '/rechnungen', label: 'Rechnungen', icon: Receipt },
   { to: '/projekte', label: 'Projekte', icon: FolderKanban },
   { to: '/akquise', label: 'Akquise', icon: Telescope },
+  { to: '/fibu', label: 'Fibu', icon: Wallet },
   { to: '/einstellungen', label: 'Einstellungen', icon: Settings },
 ];
 

@@ -6,9 +6,13 @@ export interface EmailVars {
   websiteUrl: string;
   /** Exakt 3 Punkte: Überschrift + Kunden-Empfehlung (für E-Mail-Template) */
   optimierungen: [OptimierungPunkt, OptimierungPunkt, OptimierungPunkt];
+  /** Kurzvorstellung (Christof) — nach den drei Punkten, vor dem Call-to-Action */
+  vorstellung?: string;
   preheader?: string;
   subject: string;
 }
+
+export const DEFAULT_EMAIL_VORSTELLUNG = `Mein Name ist Christof — ich weiß aus der Praxis, worauf es bei mittelständischen Handwerksbetrieben ankommt. Ich stehe Ihnen persönlich zur Verfügung: Gemeinsam können wir Ihre Abläufe mit smarten Anwendungen im Unternehmen verbessern und Prozesse spürbar effizienter machen.`;
 
 const FALLBACK_OPT: [OptimierungPunkt, OptimierungPunkt, OptimierungPunkt] = [
   {
@@ -62,6 +66,8 @@ export function buildEmailHtml(vars: EmailVars): string {
 
   const preheader = vars.preheader
     ?? `Drei konkrete Punkte zu ${vars.websiteUrl} — antworten Sie einfach auf diese E-Mail.`;
+
+  const vorstellung = (vars.vorstellung ?? DEFAULT_EMAIL_VORSTELLUNG).trim();
 
   return `<!DOCTYPE html>
 <html lang="de">
@@ -150,6 +156,20 @@ export function buildEmailHtml(vars: EmailVars): string {
           </td>
         </tr>
 
+        <!-- Kurzvorstellung -->
+        <tr>
+          <td style="background:#FFFFFF;padding:0 48px 32px 48px;" class="px">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F5F3EF;border-radius:12px;border:1px solid #EBE6DE;">
+              <tr>
+                <td style="padding:22px 26px;">
+                  <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:0.18em;color:#8A8178;text-transform:uppercase;padding-bottom:10px;">Kurz zu mir</div>
+                  <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#3A3A3A;">${esc(vorstellung)}</div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
         <!-- Nächster Schritt: Antwort -->
         <tr>
           <td style="background:#FFFFFF;padding:16px 48px 48px 48px;" class="px">
@@ -205,6 +225,7 @@ export function buildSubject(lead: { name: string; website: string }): string {
 }
 
 export function buildPlainText(vars: EmailVars): string {
+  const vorstellung = (vars.vorstellung ?? DEFAULT_EMAIL_VORSTELLUNG).trim();
   const opts = vars.optimierungen?.length === 3 ? vars.optimierungen : FALLBACK_OPT;
   const lines = opts.map((p, i) => {
     const t = p.titel?.trim() || `Punkt ${i + 1}`;
@@ -216,6 +237,8 @@ export function buildPlainText(vars: EmailVars): string {
 ich habe mir ${vars.websiteUrl} angesehen. Drei Punkte kosten Sie messbar Anfragen:
 
 ${lines.join('\n\n')}
+
+${vorstellung}
 
 Nächster Schritt: Antworten Sie einfach auf diese E-Mail — dann besprechen wir die drei Punkte und ich übernehme die Umsetzung gerne im Auftrag für Sie.
 
