@@ -87,6 +87,11 @@ export interface Firma {
   nextAngebotNr: number;
   nextRechnungNr: number;
   terminUrl: string;
+  /**
+   * Geschätzte Gesamt-Steuerlast auf den Gewinn (Umsatz − Ausgaben), in %.
+   * Nur für die Dashboard-Anzeige — keine Steuerberatung.
+   */
+  dashboardSteuerSchaetzungProzent: number;
 }
 
 // ─── Projektmanagement ────────────────────────────────────────────────────────
@@ -138,11 +143,25 @@ export interface Projekt {
 
 // ─── Akquise-Tool ─────────────────────────────────────────────────────────────
 
+/** Ein KI-Punkt: kurze Überschrift + formulierung als direkte Kunden-Empfehlung */
+export interface OptimierungPunkt {
+  titel: string;
+  empfehlung: string;
+}
+
 export interface LeadAnalyse {
-  optimierungen: string[];
+  /** Neu: Objekte mit titel + empfehlung; Altbestand: ein String pro Punkt */
+  optimierungen: (string | OptimierungPunkt)[];
   ansprechpartner: string;
   zusammenfassung: string;
   websiteGeladen: boolean;
+  /** true = URL war angegeben und Inhalt wurde geladen; false = URL da, aber nicht ladbar */
+  websiteErreichbar?: boolean;
+  /**
+   * Wenn die Website nicht automatisch geladen werden konnte: ein Fließtext für die Ansprache
+   * (ohne nummerierte Punkte), Fokus Leistungen — WebApps, Media, Druck. Leer bei normaler Analyse.
+   */
+  akquiseOhneWebsiteText?: string;
   analysiertAm: string;
 }
 
@@ -160,6 +179,25 @@ export interface Lead {
   analyse: LeadAnalyse | null;
   stern: boolean;
   erstelltAm: string;
+  /** ISO-Zeitpunkt, wenn die Akquise-E-Mail zuletzt erfolgreich versendet (oder manuell) markiert wurde */
+  akquiseEmailZuletztVersendetAm?: string;
+}
+
+/** Eingehende Rechnung (Zahlungsverpflichtung) für Fibu / Steuer */
+export interface Eingangsrechnung {
+  id: string;
+  lieferant: string;
+  rechnungsnummer: string;
+  /** Bruttobetrag in EUR */
+  betragBrutto: number;
+  /** Fälligkeitsdatum (ISO yyyy-mm-dd), Gruppierung nach Monat */
+  faelligAm: string;
+  notizen: string;
+  erstelltAm: string;
+  /** Öffentliche Download-URL der Original-PDF in Firebase Storage */
+  pdfUrl?: string;
+  /** Pfad in Storage (z. B. fibu/{uid}/{id}.pdf) — zum Löschen */
+  pdfStoragePath?: string;
 }
 
 export interface AppData {
@@ -169,4 +207,5 @@ export interface AppData {
   dokumente: Dokument[];
   projekte: Projekt[];
   leads: Lead[];
+  eingangsrechnungen: Eingangsrechnung[];
 }

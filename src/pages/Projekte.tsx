@@ -58,8 +58,8 @@ function ProjektForm({
 
   return (
     <form onSubmit={handleSubmit(onSave)} className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div className="col-span-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="sm:col-span-2">
           <label className="block text-xs font-medium text-gray-400 mb-1">Projektname *</label>
           <input {...register('name', { required: 'Pflichtfeld' })} className={inputCls} placeholder="z.B. Website Relaunch – Muster GmbH" />
           {errors.name && <p className="text-xs text-red-400 mt-1">{errors.name.message}</p>}
@@ -92,7 +92,7 @@ function ProjektForm({
           <label className="block text-xs font-medium text-gray-400 mb-1">Tags (kommagetrennt)</label>
           <input {...register('tags')} className={inputCls} placeholder="z.B. WebApp, SEO, React" />
         </div>
-        <div className="col-span-2">
+        <div className="sm:col-span-2">
           <label className="block text-xs font-medium text-gray-400 mb-1">Beschreibung</label>
           <textarea {...register('beschreibung')} rows={4} className={`${inputCls} resize-none`} placeholder="Beschreibe das Projekt, Ziele, Technologien…" />
         </div>
@@ -142,7 +142,7 @@ export default function Projekte() {
         }
       />
 
-      <div className="p-8">
+      <div className="page-padding">
         {projekte.length === 0 ? (
           <div className="bg-dark-800 rounded-2xl border border-dark-700 py-20 flex flex-col items-center gap-4 text-gray-600">
             <FolderKanban size={44} strokeWidth={1.2} />
@@ -165,16 +165,16 @@ export default function Projekte() {
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 mb-1">
-                          <h3 className="text-base font-semibold text-gray-100 group-hover:text-primary-300 transition-colors truncate">{p.name}</h3>
-                          <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_CLS[p.status]}`}>
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 mb-1">
+                          <h3 className="text-base font-semibold text-gray-100 group-hover:text-primary-300 transition-colors break-words">{p.name}</h3>
+                          <span className={`self-start shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_CLS[p.status]}`}>
                             {STATUS_LABELS[p.status]}
                           </span>
                         </div>
-                        <div className="flex items-center gap-3 text-xs text-gray-500 mb-2">
-                          {kunde && <span>{kunde.firma || kunde.ansprechpartner}</span>}
-                          {angebot && <><span>·</span><span>{angebot.nummer}</span></>}
-                          <span>·</span>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 mb-2">
+                          {kunde && <span className="break-words">{kunde.firma || kunde.ansprechpartner}</span>}
+                          {angebot && <><span className="hidden sm:inline">·</span><span className="break-all sm:break-normal">{angebot.nummer}</span></>}
+                          <span className="hidden sm:inline">·</span>
                           <span>{format(new Date(p.erstelltAm), 'dd.MM.yyyy', { locale: de })}</span>
                         </div>
                         {p.beschreibung && (
@@ -188,14 +188,16 @@ export default function Projekte() {
                           </div>
                         )}
                       </div>
-                      <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-1 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <button
+                          type="button"
                           onClick={e => { e.stopPropagation(); openEdit(p); }}
                           className="p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors"
                         >
                           <Pencil size={14} />
                         </button>
                         <button
+                          type="button"
                           onClick={e => { e.stopPropagation(); setDeleteId(p.id); }}
                           className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors"
                         >

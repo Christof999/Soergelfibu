@@ -58,65 +58,109 @@ function AngebotPositionen({ angebot }: { angebot: NonNullable<ReturnType<typeof
   return (
     <div className="bg-dark-800 border border-dark-700 rounded-2xl overflow-hidden">
       <button
+        type="button"
         onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between px-5 py-4 hover:bg-dark-700/40 transition-colors"
+        className="w-full flex items-start sm:items-center justify-between gap-3 px-4 sm:px-5 py-4 hover:bg-dark-700/40 transition-colors text-left"
       >
-        <div className="flex items-center gap-3">
-          <FileText size={15} className="text-amber-400 shrink-0" />
-          <div className="text-left">
-            <p className="text-sm font-semibold text-gray-200">{angebot.nummer}</p>
-            {angebot.betreff && <p className="text-xs text-gray-500">{angebot.betreff}</p>}
+        <div className="flex items-start gap-3 min-w-0 flex-1">
+          <FileText size={15} className="text-amber-400 shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-gray-200 break-words">{angebot.nummer}</p>
+            {angebot.betreff && <p className="text-xs text-gray-500 mt-0.5 break-words">{angebot.betreff}</p>}
           </div>
         </div>
-        <div className="flex items-center gap-4">
-          <span className="text-sm font-bold text-gray-200">{fmtEur(brutto)}</span>
-          {open ? <ChevronUp size={16} className="text-gray-500" /> : <ChevronDown size={16} className="text-gray-500" />}
+        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+          <span className="text-sm font-bold text-gray-200 tabular-nums">{fmtEur(brutto)}</span>
+          {open ? <ChevronUp size={16} className="text-gray-500 shrink-0" /> : <ChevronDown size={16} className="text-gray-500 shrink-0" />}
         </div>
       </button>
 
       {open && (
         <div className="border-t border-dark-700">
           {angebot.positionen.length === 0 ? (
-            <p className="px-5 py-4 text-sm text-gray-500">Keine Positionen vorhanden.</p>
+            <p className="px-4 sm:px-5 py-4 text-sm text-gray-500">Keine Positionen vorhanden.</p>
           ) : (
             <>
-              {/* Header */}
-              <div className="grid grid-cols-12 gap-2 px-5 py-2 bg-dark-900/60 text-xs font-semibold text-gray-500">
-                <div className="col-span-1">#</div>
-                <div className="col-span-4">Bezeichnung</div>
-                <div className="col-span-1 text-right">Menge</div>
-                <div className="col-span-1">Einheit</div>
-                <div className="col-span-2 text-right">Einzelpreis</div>
-                <div className="col-span-1 text-right">MwSt.</div>
-                <div className="col-span-2 text-right">Gesamt</div>
-              </div>
-              {angebot.positionen.map((pos, idx) => {
-                const { netto: posNetto } = berechneZeile(pos);
-                return (
-                  <div key={pos.id} className="grid grid-cols-12 gap-2 px-5 py-3 border-t border-dark-700 text-sm hover:bg-dark-700/30 transition-colors">
-                    <div className="col-span-1 text-gray-500 text-xs pt-0.5">{idx + 1}</div>
-                    <div className="col-span-4">
-                      <p className="text-gray-200 font-medium">{pos.bezeichnung}</p>
-                      {pos.beschreibung && <p className="text-xs text-gray-500 mt-0.5">{pos.beschreibung}</p>}
-                    </div>
-                    <div className="col-span-1 text-right text-gray-300">{pos.menge.toLocaleString('de-DE')}</div>
-                    <div className="col-span-1 text-gray-400 text-xs pt-0.5">{pos.einheit}</div>
-                    <div className="col-span-2 text-right text-gray-300">{fmtEur(pos.einzelpreis)}</div>
-                    <div className="col-span-1 text-right text-gray-400 text-xs pt-0.5">
-                      {pos.mwstSatz}%{pos.rabatt > 0 && <span className="block text-amber-400">-{pos.rabatt}%</span>}
-                    </div>
-                    <div className="col-span-2 text-right font-semibold text-gray-200">{fmtEur(posNetto)}</div>
+              {/* Desktop: Tabellen-Layout ab md */}
+              <div className="hidden md:block overflow-x-auto">
+                <div className="min-w-[720px]">
+                  <div className="grid grid-cols-12 gap-2 px-5 py-2 bg-dark-900/60 text-xs font-semibold text-gray-500">
+                    <div className="col-span-1">#</div>
+                    <div className="col-span-4">Bezeichnung</div>
+                    <div className="col-span-1 text-right">Menge</div>
+                    <div className="col-span-1">Einheit</div>
+                    <div className="col-span-2 text-right">Einzelpreis</div>
+                    <div className="col-span-1 text-right">MwSt.</div>
+                    <div className="col-span-2 text-right">Gesamt</div>
                   </div>
-                );
-              })}
-              {/* Summen */}
-              <div className="border-t border-dark-700 px-5 py-3 space-y-1">
-                <div className="flex justify-end gap-8 text-xs text-gray-400">
-                  <span>Netto: <span className="text-gray-300 font-medium">{fmtEur(netto)}</span></span>
-                  <span>MwSt.: <span className="text-gray-300 font-medium">{fmtEur(mwstBetrag)}</span></span>
+                  {angebot.positionen.map((pos, idx) => {
+                    const { netto: posNetto } = berechneZeile(pos);
+                    return (
+                      <div key={pos.id} className="grid grid-cols-12 gap-2 px-5 py-3 border-t border-dark-700 text-sm hover:bg-dark-700/30 transition-colors">
+                        <div className="col-span-1 text-gray-500 text-xs pt-0.5">{idx + 1}</div>
+                        <div className="col-span-4 min-w-0">
+                          <p className="text-gray-200 font-medium break-words">{pos.bezeichnung}</p>
+                          {pos.beschreibung && <p className="text-xs text-gray-500 mt-0.5 break-words">{pos.beschreibung}</p>}
+                        </div>
+                        <div className="col-span-1 text-right text-gray-300 tabular-nums">{pos.menge.toLocaleString('de-DE')}</div>
+                        <div className="col-span-1 text-gray-400 text-xs pt-0.5">{pos.einheit}</div>
+                        <div className="col-span-2 text-right text-gray-300 tabular-nums">{fmtEur(pos.einzelpreis)}</div>
+                        <div className="col-span-1 text-right text-gray-400 text-xs pt-0.5">
+                          {pos.mwstSatz}%{pos.rabatt > 0 && <span className="block text-amber-400">-{pos.rabatt}%</span>}
+                        </div>
+                        <div className="col-span-2 text-right font-semibold text-gray-200 tabular-nums">{fmtEur(posNetto)}</div>
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className="flex justify-end text-sm font-bold text-gray-100">
-                  Gesamt: <span className="ml-4 text-primary-400">{fmtEur(brutto)}</span>
+              </div>
+
+              {/* Mobil: Karten pro Position */}
+              <ul className="md:hidden divide-y divide-dark-700">
+                {angebot.positionen.map((pos, idx) => {
+                  const { netto: posNetto } = berechneZeile(pos);
+                  return (
+                    <li key={pos.id} className="px-4 py-3 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-xs text-gray-500 shrink-0">#{idx + 1}</p>
+                        <p className="text-sm font-semibold text-gray-100 text-right tabular-nums">{fmtEur(posNetto)}</p>
+                      </div>
+                      <p className="text-sm font-medium text-gray-200 break-words">{pos.bezeichnung}</p>
+                      {pos.beschreibung && <p className="text-xs text-gray-500 break-words">{pos.beschreibung}</p>}
+                      <dl className="space-y-1.5 text-xs text-gray-400">
+                        <div className="flex justify-between gap-3">
+                          <dt>Menge</dt>
+                          <dd className="text-gray-300 text-right tabular-nums shrink-0">{pos.menge.toLocaleString('de-DE')} {pos.einheit}</dd>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                          <dt>Einzelpreis</dt>
+                          <dd className="text-gray-300 text-right tabular-nums shrink-0">{fmtEur(pos.einzelpreis)}</dd>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                          <dt>MwSt.</dt>
+                          <dd className="text-gray-300 text-right shrink-0">{pos.mwstSatz}%</dd>
+                        </div>
+                        {pos.rabatt > 0 && (
+                          <div className="flex justify-between gap-3">
+                            <dt>Rabatt</dt>
+                            <dd className="text-amber-400 text-right tabular-nums shrink-0">-{pos.rabatt}%</dd>
+                          </div>
+                        )}
+                      </dl>
+                    </li>
+                  );
+                })}
+              </ul>
+
+              {/* Summen */}
+              <div className="border-t border-dark-700 px-4 sm:px-5 py-3 space-y-2">
+                <div className="flex flex-col sm:flex-row sm:justify-end sm:items-center gap-2 sm:gap-6 text-xs text-gray-400">
+                  <span>Netto: <span className="text-gray-300 font-medium tabular-nums">{fmtEur(netto)}</span></span>
+                  <span>MwSt.: <span className="text-gray-300 font-medium tabular-nums">{fmtEur(mwstBetrag)}</span></span>
+                </div>
+                <div className="flex flex-wrap justify-end items-baseline gap-x-2 text-sm font-bold text-gray-100">
+                  <span>Gesamt:</span>
+                  <span className="text-primary-400 tabular-nums">{fmtEur(brutto)}</span>
                 </div>
               </div>
             </>
@@ -145,12 +189,12 @@ function ZugangForm({ initial, onSave, onCancel }: {
   });
   return (
     <form onSubmit={handleSubmit(onSave)} className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div className="col-span-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="sm:col-span-2">
           <label className="block text-xs font-medium text-gray-400 mb-1">Bezeichnung *</label>
           <input {...register('bezeichnung', { required: true })} className={inputCls} placeholder="z.B. Hosting, CMS, Figma…" />
         </div>
-        <div className="col-span-2">
+        <div className="sm:col-span-2">
           <label className="block text-xs font-medium text-gray-400 mb-1">URL / Link</label>
           <input {...register('url')} className={inputCls} placeholder="https://…" />
         </div>
@@ -162,7 +206,7 @@ function ZugangForm({ initial, onSave, onCancel }: {
           <label className="block text-xs font-medium text-gray-400 mb-1">Passwort / Token</label>
           <input {...register('passwort')} className={inputCls} />
         </div>
-        <div className="col-span-2">
+        <div className="sm:col-span-2">
           <label className="block text-xs font-medium text-gray-400 mb-1">Notizen</label>
           <textarea {...register('notizen')} rows={2} className={`${inputCls} resize-none`} />
         </div>
@@ -224,7 +268,7 @@ function UploadZone({
     Array.from(files).forEach(file => {
       const id = uuidv4();
       // Dateinamen bereinigen (Leerzeichen → Unterstrich, Sonderzeichen entfernen)
-      const safeName = file.name.replace(/\s+/g, '_').replace(/[^\w.\-]/g, '');
+      const safeName = file.name.replace(/\s+/g, '_').replace(/[^\w.-]/g, '');
       const path = `projects/${user.uid}/${projektId}/${komId}/${id}_${safeName}`;
       const storageRef = ref(storage, path);
 
@@ -377,7 +421,7 @@ function KomForm({ initial, onSave, onCancel, projektId, komId }: {
 
   return (
     <form onSubmit={handleSubmit(submit)} className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="block text-xs font-medium text-gray-400 mb-1">Typ</label>
           <select {...register('typ')} className={inputCls}>
@@ -391,11 +435,11 @@ function KomForm({ initial, onSave, onCancel, projektId, komId }: {
           <label className="block text-xs font-medium text-gray-400 mb-1">Datum</label>
           <input type="date" {...register('datum')} className={inputCls} />
         </div>
-        <div className="col-span-2">
+        <div className="sm:col-span-2">
           <label className="block text-xs font-medium text-gray-400 mb-1">Betreff</label>
           <input {...register('betreff')} className={inputCls} placeholder="Kurze Zusammenfassung" />
         </div>
-        <div className="col-span-2">
+        <div className="sm:col-span-2">
           <label className="block text-xs font-medium text-gray-400 mb-1">Inhalt</label>
           <textarea {...register('inhalt')} rows={4} className={`${inputCls} resize-none`} placeholder="Details, Ergebnisse, nächste Schritte…" />
         </div>
@@ -449,9 +493,9 @@ export default function ProjektDetail() {
   const projekt = data.projekte?.find(p => p.id === id);
   if (!projekt) {
     return (
-      <div className="p-8 text-center text-gray-500">
+      <div className="page-padding text-center text-gray-500">
         Projekt nicht gefunden.{' '}
-        <button onClick={() => navigate('/projekte')} className="text-primary-400 hover:underline">Zurück zur Liste</button>
+        <button type="button" onClick={() => navigate('/projekte')} className="text-primary-400 hover:underline">Zurück zur Liste</button>
       </div>
     );
   }
@@ -494,41 +538,42 @@ export default function ProjektDetail() {
   return (
     <div>
       {/* Kopf */}
-      <div className="bg-dark-800 border-b border-dark-700 px-8 py-5">
-        <button onClick={() => navigate('/projekte')} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 mb-3 transition-colors">
+      <div className="bg-dark-800 border-b border-dark-700 page-header-padding">
+        <button type="button" onClick={() => navigate('/projekte')} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 mb-3 transition-colors">
           <ArrowLeft size={14} /> Alle Projekte
         </button>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-xl font-bold text-gray-100">{projekt.name}</h1>
-              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_CLS[projekt.status]}`}>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:flex-wrap sm:gap-3 mb-1">
+              <h1 className="text-lg sm:text-xl font-bold text-gray-100 break-words">{projekt.name}</h1>
+              <span className={`inline-flex items-center self-start px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_CLS[projekt.status]}`}>
                 {STATUS_LABELS[projekt.status]}
               </span>
             </div>
-            <div className="flex items-center gap-3 text-xs text-gray-500">
-              {kunde && <span>{kunde.firma || kunde.ansprechpartner}</span>}
-              {angebot && <><span>·</span><span className="text-gray-600">{angebot.nummer}</span></>}
-              <span>·</span>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
+              {kunde && <span className="break-words">{kunde.firma || kunde.ansprechpartner}</span>}
+              {angebot && <><span className="text-gray-600 hidden sm:inline">·</span><span className="text-gray-600 break-all sm:break-normal">{angebot.nummer}</span></>}
+              <span className="hidden sm:inline">·</span>
               <span>Erstellt {format(new Date(projekt.erstelltAm), 'dd.MM.yyyy', { locale: de })}</span>
             </div>
           </div>
           <select
             value={projekt.status}
             onChange={e => setStatus(e.target.value as ProjektStatus)}
-            className="bg-dark-900 border border-dark-700 rounded-lg px-3 py-1.5 text-xs text-gray-300 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            className="w-full lg:w-auto lg:min-w-[11rem] bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-xs text-gray-300 focus:outline-none focus:ring-1 focus:ring-primary-500 shrink-0"
           >
             {(Object.keys(STATUS_LABELS) as ProjektStatus[]).map(s => (
               <option key={s} value={s}>{STATUS_LABELS[s]}</option>
             ))}
           </select>
         </div>
-        <div className="flex gap-1 mt-5">
+        <div className="flex gap-1 mt-4 -mx-1 px-1 overflow-x-auto pb-1 scrollbar-thin sm:flex-wrap sm:overflow-visible">
           {tabs.map(t => (
             <button
+              type="button"
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
                 tab === t.id ? 'bg-primary-600/20 text-primary-300' : 'text-gray-500 hover:text-gray-300 hover:bg-dark-700'
               }`}
             >
@@ -541,11 +586,11 @@ export default function ProjektDetail() {
         </div>
       </div>
 
-      <div className="p-8">
+      <div className="page-padding">
 
         {/* ── Übersicht ── */}
         {tab === 'uebersicht' && (
-          <div className="space-y-5 max-w-3xl">
+          <div className="space-y-5 max-w-3xl w-full min-w-0">
             {projekt.beschreibung && (
               <div className="bg-dark-800 border border-dark-700 rounded-2xl p-5">
                 <h3 className="text-sm font-semibold text-gray-400 mb-2">Beschreibung</h3>
@@ -562,7 +607,7 @@ export default function ProjektDetail() {
             )}
             {/* Angebot mit aufklappbaren Positionen */}
             {angebot && <AngebotPositionen angebot={angebot} />}
-            <div className="bg-dark-800 border border-dark-700 rounded-2xl p-5 grid grid-cols-2 gap-4 text-sm">
+            <div className="bg-dark-800 border border-dark-700 rounded-2xl p-5 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
               <div><p className="text-xs text-gray-500 mb-0.5">Zugänge</p><p className="font-semibold text-gray-200">{projekt.zugaenge.length}</p></div>
               <div><p className="text-xs text-gray-500 mb-0.5">Kommunikation</p><p className="font-semibold text-gray-200">{projekt.kommunikation.length}</p></div>
               <div><p className="text-xs text-gray-500 mb-0.5">Erstellt am</p><p className="text-gray-300">{format(new Date(projekt.erstelltAm), 'dd.MM.yyyy', { locale: de })}</p></div>
@@ -574,8 +619,8 @@ export default function ProjektDetail() {
         {/* ── Zugänge ── */}
         {tab === 'zugaenge' && (
           <div>
-            <div className="flex justify-end mb-4">
-              <button onClick={() => { setEditZugang(null); setZugangModal(true); }} className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors">
+            <div className="flex justify-stretch sm:justify-end mb-4">
+              <button type="button" onClick={() => { setEditZugang(null); setZugangModal(true); }} className="flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors">
                 <Plus size={15} /> Zugang hinzufügen
               </button>
             </div>
@@ -600,8 +645,8 @@ export default function ProjektDetail() {
         {/* ── Kommunikation ── */}
         {tab === 'kommunikation' && (
           <div>
-            <div className="flex justify-end mb-4">
-              <button onClick={() => { setEditKom(null); setKomModal(true); }} className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors">
+            <div className="flex justify-stretch sm:justify-end mb-4">
+              <button type="button" onClick={() => { setEditKom(null); setKomModal(true); }} className="flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors">
                 <Plus size={15} /> Eintrag hinzufügen
               </button>
             </div>
@@ -637,7 +682,7 @@ export default function ProjektDetail() {
                       {/* Anhänge direkt in der Karte */}
                       {(k.anhaenge ?? []).length > 0 && (
                         <div className="mt-3 pt-3 border-t border-dark-700">
-                          <p className="text-xs text-gray-500 mb-2 flex items-center gap-1.5"><Paperclip size={11} />{k.anhaenge!.length} Anhang{k.anhaenge!.length !== 1 ? '¨e' : ''}</p>
+                          <p className="text-xs text-gray-500 mb-2 flex items-center gap-1.5"><Paperclip size={11} />{k.anhaenge!.length} Anhang{k.anhaenge!.length !== 1 ? 'e' : ''}</p>
                           <div className="flex flex-wrap gap-2">
                             {k.anhaenge!.map(a => (
                               <AnhangItem key={a.id} a={a} onDelete={() => handleDeleteAnhangFromCard(k.id, a)} />

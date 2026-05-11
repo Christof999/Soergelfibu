@@ -3,9 +3,30 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    height: 100%;
+    /* Verhindert horizontalen Scroll durch zu breite Kinder (mobile) */
+    overflow-x: clip;
+  }
   body {
     @apply bg-dark-900 text-gray-100 antialiased;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    min-height: 100%;
+    min-height: 100dvh;
+    overflow-x: clip;
+    /* Lange Wörter/URLs umbrechen statt Layout zu sprengen */
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+}
+
+@layer components {
+  /* Einheitliche Innenabstände: eng auf dem Handy, luftiger ab Tablet */
+  .page-padding {
+    @apply px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8;
+  }
+  .page-header-padding {
+    @apply px-4 py-4 sm:px-6 sm:py-5 lg:px-8;
   }
 }
 

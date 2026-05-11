@@ -1,12 +1,21 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Copy, Download, Send, RefreshCw, ExternalLink } from 'lucide-react';
+import { X, Copy, Download, Send, RefreshCw, ExternalLink, CheckCircle2 } from 'lucide-react';
 import { Lead } from '../types';
-import { buildEmailHtml, buildSubject, buildPlainText, EmailVars } from '../utils/emailTemplate';
-import { useApp } from '../context/AppContext';
+import {
+  buildEmailHtml,
+  buildSubject,
+  buildSubjectOhneWebsiteErreichbar,
+  buildPlainText,
+  EmailVars,
+  DEFAULT_EMAIL_VORSTELLUNG,
+} from '../utils/emailTemplate';
+import { normalizeOptimierungenListe } from '../utils/leadAnalyse';
 
 interface Props {
   lead: Lead;
   onClose: () => void;
+  /** Nach erfolgreichem Versand oder manueller Markierung — aktualisiert den Lead in Firebase */
+  onEmailSent?: (leadId: string, versendetAmIso: string) => void | Promise<void>;
 }
 
 function toast(msg: string) {
@@ -17,27 +26,25 @@ function toast(msg: string) {
   setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 350); }, 2000);
 }
 
-export default function EmailModal({ lead, onClose }: Props) {
-  const { data } = useApp();
-  const firma = data.firma;
+export default function EmailModal({ lead, onClose, onEmailSent }: Props) {
   const analyse = lead.analyse;
 
+  const [recipientEmail, setRecipientEmail] = useState(() => (lead.email || '').trim());
+
   // Variablen — alle editierbar
-  const [vars, setVars] = useState<EmailVars>(() => {
-    const opt1 = analyse?.optimierungen[0] ?? '';
-    const opt2 = analyse?.optimierungen[1] ?? '';
-    const opt3 = analyse?.optimierungen[2] ?? '';
-    return {
-      customerName: analyse?.ansprechpartner || 'Guten Tag',
-      companyName: lead.name,
-      websiteUrl: lead.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''),
-      ctaUrl: firma.terminUrl || 'https://cal.com/',
-      optimierungen: [opt1, opt2, opt3] as [string, string, string],
-      subject: buildSubject(lead),
-    };
-  });
+  const fluss = (analyse?.akquiseOhneWebsiteText ?? '').trim();
+  const [vars, setVars] = useState<EmailVars>(() => ({
+    customerName: analyse?.ansprechpartner || 'Guten Tag',
+    companyName: lead.name,
+    websiteUrl: lead.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''),
+    optimierungen: normalizeOptimierungenListe(analyse?.optimierungen),
+    akquiseOhneWebsiteText: fluss,
+    vorstellung: DEFAULT_EMAIL_VORSTELLUNG,
+    subject: fluss ? buildSubjectOhneWebsiteErreichbar(lead) : buildSubject(lead),
+  }));
 
   const [tab, setTab] = useState<'vorschau' | 'felder'>('felder');
+  const [sending, setSending] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const html = buildEmailHtml(vars);
 
@@ -63,10 +70,16 @@ export default function EmailModal({ lead, onClose }: Props) {
   }, [onClose]);
 
   const set = (k: keyof EmailVars, v: string) => setVars(p => ({ ...p, [k]: v }));
-  const setOpt = (idx: 0 | 1 | 2, v: string) =>
+  const setOptTitel = (idx: 0 | 1 | 2, titel: string) =>
     setVars(p => {
-      const o = [...p.optimierungen] as [string, string, string];
-      o[idx] = v;
+      const o = [...p.optimierungen] as EmailVars['optimierungen'];
+      o[idx] = { ...o[idx], titel };
+      return { ...p, optimierungen: o };
+    });
+  const setOptEmpfehlung = (idx: 0 | 1 | 2, empfehlung: string) =>
+    setVars(p => {
+      const o = [...p.optimierungen] as EmailVars['optimierungen'];
+      o[idx] = { ...o[idx], empfehlung };
       return { ...p, optimierungen: o };
     });
 
@@ -93,8 +106,53 @@ export default function EmailModal({ lead, onClose }: Props) {
 
   const openMailto = () => {
     const body = buildPlainText(vars);
-    const href = `mailto:${encodeURIComponent(lead.email || '')}?subject=${encodeURIComponent(vars.subject)}&body=${encodeURIComponent(body)}`;
+    const href = `mailto:${encodeURIComponent(recipientEmail)}?subject=${encodeURIComponent(vars.subject)}&body=${encodeURIComponent(body)}`;
     window.location.href = href;
+  };
+
+  const markAlsVersendet = async () => {
+    const versendetAm = new Date().toISOString();
+    try {
+      await onEmailSent?.(lead.id, versendetAm);
+      toast('Als versendet gespeichert.');
+    } catch {
+      toast('Speichern fehlgeschlagen.');
+    }
+  };
+
+  const sendViaServer = async () => {
+    if (!recipientEmail.includes('@')) {
+      toast('Bitte eine gültige Empfänger-Adresse eintragen.');
+      return;
+    }
+    setSending(true);
+    try {
+      const plain = buildPlainText(vars);
+      const r = await fetch('/api/send-akquise-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: recipientEmail,
+          subject: vars.subject,
+          html,
+          text: plain,
+        }),
+      });
+      const data = (await r.json()) as { error?: string; hint?: string; ok?: boolean; id?: string };
+      if (!r.ok) {
+        const msg = data.error ?? 'Versand fehlgeschlagen';
+        const hint = data.hint ? `\n\n${data.hint}` : '';
+        alert(`${msg}${hint}`);
+        return;
+      }
+      const versendetAm = new Date().toISOString();
+      await onEmailSent?.(lead.id, versendetAm);
+      toast('E-Mail wurde gesendet.');
+    } catch {
+      alert('Netzwerkfehler. Bitte erneut versuchen oder „In Mail-App öffnen“ nutzen.');
+    } finally {
+      setSending(false);
+    }
   };
 
   const inputCls = 'w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none';
@@ -110,6 +168,16 @@ export default function EmailModal({ lead, onClose }: Props) {
           <div>
             <h2 className="text-base font-semibold text-gray-100">E-Mail erstellen</h2>
             <p className="text-xs text-gray-500 mt-0.5">{lead.name} · {lead.website}</p>
+            {lead.akquiseEmailZuletztVersendetAm && (
+              <p className="text-xs text-emerald-400/90 mt-1 flex items-center gap-1.5">
+                <CheckCircle2 size={12} className="shrink-0" />
+                Zuletzt als versendet markiert:{' '}
+                {new Date(lead.akquiseEmailZuletztVersendetAm).toLocaleString('de-DE', {
+                  dateStyle: 'short',
+                  timeStyle: 'short',
+                })}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {/* Tab-Switcher */}
@@ -141,6 +209,18 @@ export default function EmailModal({ lead, onClose }: Props) {
               <p className="text-xs text-gray-500 uppercase tracking-wider">Empfänger</p>
 
               <div className="space-y-1">
+                <label className="block text-xs text-gray-500">E-Mail-Adresse</label>
+                <input
+                  className={inputCls}
+                  type="email"
+                  value={recipientEmail}
+                  onChange={e => setRecipientEmail(e.target.value)}
+                  placeholder="kunde@firma.de"
+                  autoComplete="email"
+                />
+              </div>
+
+              <div className="space-y-1">
                 <label className="block text-xs text-gray-500">Anrede / Name</label>
                 <input className={inputCls} value={vars.customerName} onChange={e => set('customerName', e.target.value)} placeholder="Herr Mustermann" />
               </div>
@@ -159,46 +239,113 @@ export default function EmailModal({ lead, onClose }: Props) {
                   <label className="block text-xs text-gray-500">Betreff</label>
                   <input className={inputCls} value={vars.subject} onChange={e => set('subject', e.target.value)} />
                 </div>
-                <div className="space-y-1 mt-3">
-                  <label className="block text-xs text-gray-500">Termin-Link (CTA)</label>
-                  <input className={inputCls} value={vars.ctaUrl} onChange={e => set('ctaUrl', e.target.value)} placeholder="https://cal.com/..." />
-                </div>
               </div>
 
               <div className="border-t border-dark-700 pt-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs text-gray-500 uppercase tracking-wider">3 Optimierungen</p>
+                  <p className="text-xs text-gray-500 uppercase tracking-wider">
+                    {(vars.akquiseOhneWebsiteText ?? '').trim() ? 'Ansprache (ohne Punkte)' : '3 Optimierungen'}
+                  </p>
                   {analyse && (
                     <span className="text-xs text-emerald-400 flex items-center gap-1">
                       <RefreshCw size={10} /> KI
                     </span>
                   )}
                 </div>
-                {([0, 1, 2] as const).map(idx => (
-                  <div key={idx} className="space-y-1">
-                    <label className="block text-xs text-gray-500">Punkt {idx + 1}</label>
+                {(vars.akquiseOhneWebsiteText ?? '').trim() ? (
+                  <div className="space-y-2 rounded-lg border border-dark-700/80 p-3 bg-dark-900/40">
+                    <p className="text-xs text-gray-500 leading-relaxed">
+                      Website war nicht erreichbar — dieser Fließtext ersetzt die drei nummerierten Punkte in der E-Mail. Absätze mit Leerzeile trennen.
+                    </p>
                     <textarea
-                      rows={3}
+                      rows={12}
                       className={inputCls}
-                      value={vars.optimierungen[idx]}
-                      onChange={e => setOpt(idx, e.target.value)}
-                      placeholder={`Optimierung ${idx + 1}…`}
+                      value={vars.akquiseOhneWebsiteText ?? ''}
+                      onChange={e => set('akquiseOhneWebsiteText', e.target.value)}
+                      placeholder="Fließtext in der Sie-Form…"
                     />
                   </div>
-                ))}
+                ) : (
+                  ([0, 1, 2] as const).map(idx => (
+                    <div key={idx} className="space-y-2 rounded-lg border border-dark-700/80 p-3 bg-dark-900/40">
+                      <p className="text-xs font-medium text-gray-400">Punkt {idx + 1}</p>
+                      <div className="space-y-1">
+                        <label className="block text-xs text-gray-500">Überschrift (wie im E-Mail)</label>
+                        <input
+                          className={inputCls}
+                          value={vars.optimierungen[idx].titel}
+                          onChange={e => setOptTitel(idx, e.target.value)}
+                          placeholder="Kurze Überschrift"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-xs text-gray-500">Empfehlung an den Kunden (Sie-Form)</label>
+                        <textarea
+                          rows={3}
+                          className={inputCls}
+                          value={vars.optimierungen[idx].empfehlung}
+                          onChange={e => setOptEmpfehlung(idx, e.target.value)}
+                          placeholder="Direkte, konkrete Empfehlung für die E-Mail…"
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="border-t border-dark-700 pt-4 space-y-2">
+                <label className="block text-xs text-gray-500">Kurzvorstellung (nach den drei Punkten)</label>
+                <textarea
+                  rows={5}
+                  className={inputCls}
+                  value={vars.vorstellung ?? ''}
+                  onChange={e => set('vorstellung', e.target.value)}
+                  placeholder={DEFAULT_EMAIL_VORSTELLUNG}
+                />
               </div>
             </div>
 
             {/* Aktionen */}
             <div className="p-4 border-t border-dark-700 space-y-2 shrink-0">
-              {lead.email ? (
-                <button onClick={openMailto} className="w-full flex items-center justify-between px-4 py-2.5 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors">
-                  <span className="flex items-center gap-2"><Send size={14} /> In Mail-App öffnen</span>
-                  <ExternalLink size={12} className="opacity-60" />
+              <button
+                type="button"
+                disabled={sending || !recipientEmail.includes('@')}
+                onClick={sendViaServer}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Send size={14} />
+                {sending ? 'Wird gesendet…' : 'Jetzt versenden'}
+              </button>
+              <p className="text-[11px] text-gray-600 leading-snug">
+                Direktversand nutzt Resend (Server). Dafür in Vercel{' '}
+                <code className="text-gray-500">RESEND_API_KEY</code> und{' '}
+                <code className="text-gray-500">RESEND_FROM_EMAIL</code> setzen.
+              </p>
+              <button
+                type="button"
+                onClick={openMailto}
+                disabled={!recipientEmail.includes('@')}
+                className="w-full flex items-center justify-between px-4 py-2.5 border border-dark-600 text-gray-300 text-sm font-medium rounded-lg hover:bg-dark-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span className="flex items-center gap-2">In Mail-App öffnen (mailto)</span>
+                <ExternalLink size={12} className="opacity-60" />
+              </button>
+              <p className="text-[11px] text-gray-600 leading-snug">
+                Hinweis: <span className="text-gray-500">mailto</span> kann nur <strong className="text-gray-500 font-medium">Klartext</strong> übergeben — das Layout aus der Vorschau gibt es im Browser nicht. Für das <strong className="text-gray-500 font-medium">HTML-Design</strong> „Jetzt versenden“ (Resend) oder HTML kopieren und in der Mail-App einfügen.
+              </p>
+              {onEmailSent && (
+                <button
+                  type="button"
+                  onClick={markAlsVersendet}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium border border-emerald-800/60 text-emerald-300 rounded-lg hover:bg-emerald-900/25 transition-colors"
+                >
+                  <CheckCircle2 size={14} />
+                  Als versendet markieren (z. B. nach Mail-App)
                 </button>
-              ) : (
-                <div className="text-xs text-gray-600 text-center py-1">Keine E-Mail-Adresse vorhanden</div>
               )}
+              <p className="text-[11px] text-gray-600 leading-snug">
+                Nach dem Versand über die Mail-App hier klicken — dann sehen Sie das Datum und vermeiden Doppelversand.
+              </p>
               <div className="grid grid-cols-3 gap-1.5">
                 <button onClick={copyHtml} className="flex flex-col items-center gap-1 px-2 py-2 border border-dark-700 rounded-lg text-gray-400 hover:bg-dark-700 hover:text-gray-200 transition-colors">
                   <Copy size={13} /><span className="text-xs">HTML</span>

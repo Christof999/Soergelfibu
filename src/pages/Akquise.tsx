@@ -2,12 +2,13 @@ import { useState } from 'react';
 import {
   Search, Star, Globe, Phone, Mail, MapPin, Loader2,
   Sparkles, ChevronDown, ChevronUp, ExternalLink, Trash2,
-  TrendingUp, Users,
+  TrendingUp, Users, Send,
 } from 'lucide-react';
 import EmailModal from '../components/EmailModal';
 import PageHeader from '../components/PageHeader';
 import { useApp } from '../context/AppContext';
 import { Lead, LeadAnalyse } from '../types';
+import { parseOptimierungPunkt } from '../utils/leadAnalyse';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -65,12 +66,21 @@ function LeadKarte({
               {lead.website && (
                 <p className="flex items-center gap-1.5">
                   <Globe size={10} />
-                  <a href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`} target="_blank" rel="noopener noreferrer" className="hover:text-primary-400 truncate max-w-[220px] flex items-center gap-1">
+                  <a href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`} target="_blank" rel="noopener noreferrer" className="hover:text-primary-400 break-all min-w-0 flex items-center gap-1">
                     {lead.website.replace(/^https?:\/\/(www\.)?/, '')} <ExternalLink size={9} />
                   </a>
                 </p>
               )}
               {lead.email && <p className="flex items-center gap-1.5"><Mail size={10} /><a href={`mailto:${lead.email}`} className="hover:text-primary-400">{lead.email}</a></p>}
+              {lead.akquiseEmailZuletztVersendetAm && (
+                <p className="flex items-center gap-1.5 text-emerald-400/90 mt-1">
+                  <Send size={10} className="shrink-0" />
+                  <span>
+                    Akquise-E-Mail zuletzt:{' '}
+                    {format(new Date(lead.akquiseEmailZuletztVersendetAm), 'dd.MM.yyyy HH:mm', { locale: de })}
+                  </span>
+                </p>
+              )}
               {lead.bewertung > 0 && <div className="mt-1"><Sterne n={lead.bewertung} /> <span className="text-gray-600 text-xs">({lead.bewertungsAnzahl})</span></div>}
             </div>
           </div>
@@ -134,15 +144,18 @@ function LeadKarte({
             {lead.analyse.optimierungen.length > 0 && (
               <div>
                 <p className="text-xs font-semibold text-gray-400 mb-1.5 flex items-center gap-1.5">
-                  <TrendingUp size={11} /> Optimierungspotenziale
+                  <TrendingUp size={11} /> Empfehlungen für die Ansprache
                 </p>
-                <ul className="space-y-1.5">
-                  {lead.analyse.optimierungen.map((opt, i) => (
-                    <li key={i} className="flex items-start gap-2 text-xs text-gray-300">
-                      <span className="shrink-0 w-4 h-4 rounded-full bg-primary-700/50 text-primary-300 flex items-center justify-center text-xs font-bold mt-0.5">{i + 1}</span>
-                      {opt}
-                    </li>
-                  ))}
+                <ul className="space-y-2">
+                  {lead.analyse.optimierungen.map((raw, i) => {
+                    const { titel, empfehlung } = parseOptimierungPunkt(raw, i);
+                    return (
+                      <li key={i} className="text-xs text-gray-300 border border-dark-700/80 rounded-lg p-2.5 bg-dark-900/30">
+                        <p className="font-semibold text-gray-200 mb-1">{titel}</p>
+                        {empfehlung && <p className="text-gray-400 leading-relaxed">{empfehlung}</p>}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}
@@ -227,6 +240,19 @@ export default function Akquise() {
     await deleteLead(lead.id); // direkt löschen
   };
 
+  const handleAkquiseEmailGesendet = async (leadId: string, versendetAmIso: string) => {
+    const inFirestore = (data.leads ?? []).find(l => l.id === leadId);
+    if (inFirestore) {
+      await upsertLead({ ...inFirestore, akquiseEmailZuletztVersendetAm: versendetAmIso });
+    }
+    setSuchergebnisse(prev =>
+      prev.map(l => (l.id === leadId ? { ...l, akquiseEmailZuletztVersendetAm: versendetAmIso } : l))
+    );
+    setEmailLead(prev =>
+      prev && prev.id === leadId ? { ...prev, akquiseEmailZuletztVersendetAm: versendetAmIso } : prev
+    );
+  };
+
   const analysieren = async (lead: Lead, isFromPotentiell = false) => {
     setAnalysierend(prev => ({ ...prev, [lead.id]: true }));
     try {
@@ -256,15 +282,16 @@ export default function Akquise() {
       />
 
       {/* Tab-Leiste */}
-      <div className="flex gap-1 px-8 pt-4 pb-0 border-b border-dark-700">
+      <div className="flex gap-1 px-4 sm:px-8 pt-4 pb-0 border-b border-dark-700 overflow-x-auto scrollbar-thin">
         {([
           { id: 'suche', label: 'Suche & Entdecken' },
           { id: 'potentiell', label: `Potentielle Kunden${potentielle.length > 0 ? ` (${potentielle.length})` : ''}` },
         ] as { id: Ansicht; label: string }[]).map(t => (
           <button
+            type="button"
             key={t.id}
             onClick={() => setAnsicht(t.id)}
-            className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors border-b-2 -mb-px ${
+            className={`px-3 sm:px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors border-b-2 -mb-px whitespace-nowrap shrink-0 ${
               ansicht === t.id
                 ? 'border-primary-500 text-primary-300 bg-dark-800'
                 : 'border-transparent text-gray-500 hover:text-gray-300'
@@ -275,16 +302,16 @@ export default function Akquise() {
         ))}
       </div>
 
-      <div className="p-8 space-y-6">
+      <div className="page-padding space-y-6">
 
         {/* ── Suche ── */}
         {ansicht === 'suche' && (
           <>
             {/* Suchformular */}
-            <div className="bg-dark-800 border border-dark-700 rounded-2xl p-5 space-y-4">
+            <div className="bg-dark-800 border border-dark-700 rounded-2xl p-4 sm:p-5 space-y-4">
               <h2 className="text-sm font-semibold text-gray-300">Unternehmen finden</h2>
-              <div className="grid grid-cols-12 gap-3">
-                <div className="col-span-5">
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                <div className="sm:col-span-5">
                   <label className="block text-xs font-medium text-gray-500 mb-1">Branche / Suchbegriff</label>
                   <input
                     value={query}
@@ -294,7 +321,7 @@ export default function Akquise() {
                     className="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
-                <div className="col-span-2">
+                <div className="sm:col-span-2">
                   <label className="block text-xs font-medium text-gray-500 mb-1">PLZ</label>
                   <input
                     value={plz}
@@ -302,7 +329,7 @@ export default function Akquise() {
                     className="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
-                <div className="col-span-2">
+                <div className="sm:col-span-2">
                   <label className="block text-xs font-medium text-gray-500 mb-1">Umkreis (km)</label>
                   <select
                     value={radius}
@@ -316,8 +343,9 @@ export default function Akquise() {
                     <option value="100">100 km</option>
                   </select>
                 </div>
-                <div className="col-span-3 flex items-end">
+                <div className="sm:col-span-3 flex items-end">
                   <button
+                    type="button"
                     onClick={suchen}
                     disabled={sucht || !query.trim()}
                     className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -391,7 +419,10 @@ export default function Akquise() {
                       />
                       {/* E-Mail-Button */}
                       <button
-                        onClick={() => setEmailLead(lead)}
+                        onClick={() => {
+                          const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
+                          setEmailLead(live);
+                        }}
                         className="flex items-center justify-center gap-2 px-4 py-2 w-full text-sm font-medium bg-dark-800 border border-dark-700 text-gray-300 rounded-xl hover:bg-dark-700 hover:text-gray-100 transition-colors"
                       >
                         <Mail size={14} /> E-Mail erstellen
@@ -405,7 +436,11 @@ export default function Akquise() {
       </div>
 
       {emailLead && (
-        <EmailModal lead={emailLead} onClose={() => setEmailLead(null)} />
+        <EmailModal
+          lead={emailLead}
+          onClose={() => setEmailLead(null)}
+          onEmailSent={handleAkquiseEmailGesendet}
+        />
       )}
     </div>
   );

@@ -1,0 +1,68 @@
+Firebase – Berechtigungen für diese App
+========================================
+
+OHNE PC / OHNE TERMINAL – NUR IM BROWSER (Firebase Console)
+------------------------------------------------------------
+
+1. Öffne: https://console.firebase.google.com/
+2. Projekt **soergelfibu** auswählen.
+
+   STORAGE (PDFs Fibu, Projekt-Anhänge):
+3. Links: **Build** → **Storage**
+4. Tab **Regeln** (Rules)
+5. Den Inhalt aus der Datei **storage.rules** im Repo einfügen (nur der
+   Block ab `rules_version = '2';` bis zur letzten `}` – Kommentare am
+   Anfang kannst du weglassen oder drinlassen).
+6. **Veröffentlichen** klicken.
+
+   FIRESTORE (App-Daten):
+7. Links: **Build** → **Firestore Database**
+8. Tab **Regeln** (Rules)
+9. Inhalt aus **firestore.rules** einfügen (ab `rules_version = '2';`)
+10. **Veröffentlichen** klicken.
+
+Wichtig: Ohne Veröffentlichen gelten die alten Regeln weiter.
+
+
+1) WAS IST WO GESPEICHERT?
+
+   • Firestore (Textdaten: Kunden, Fibu-Einträge, …)
+     Datei: firestore.rules
+
+   • Storage (Dateien: PDFs unter fibu/…, Projekt-Anhänge unter projects/…)
+     Datei: storage.rules
+
+   Beide Dateien liegen im Projektroot. Sie sind die „Berechtigungen“ – erst
+   nach dem Hochladen zu Google/Firebase gelten sie online.
+
+
+2) EINMALIG AKTIVIEREN (auf deinem Rechner, im Projektordner)
+
+   a) Bei Google anmelden:
+      npx firebase-tools@latest login
+
+   b) Richtiges Projekt wählen (muss zu deiner App passen):
+      npx firebase-tools@latest use soergelfibu
+
+   c) Regeln hochladen:
+
+      Nur Storage (PDFs Fibu / Anhänge):
+      npx firebase-tools@latest deploy --only storage
+
+      Nur Firestore:
+      npx firebase-tools@latest deploy --only firestore:rules
+
+      Beides:
+      npx firebase-tools@latest deploy --only storage,firestore:rules
+
+
+3) WENN „SPEICHERN“ IN DER FIBU FEHLSCHLÄGT
+
+   Häufig sind die storage.rules noch nicht deployed. Schritt 2c für Storage
+   ausführen, dann die App neu laden und erneut speichern.
+
+
+4) PROJEKT-ID
+
+   In firebase.json ist der Storage-Bucket eingetragen. Das Projekt heißt
+   laut Konfiguration: soergelfibu
