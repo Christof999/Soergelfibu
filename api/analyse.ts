@@ -104,14 +104,17 @@ WICHTIGE REGELN – halte dich STRIKT daran:
 2. Ansprechpartner: Nur angeben wenn ein konkreter Name im Impressum steht. Sonst leerer String "".
 3. Responsivität/Design: Beurteile NUR was aus dem Text erkennbar ist. Mache KEINE Annahmen über das visuelle Design.
 4. Wenn die Website nicht geladen werden konnte, analysiere nur anhand des Unternehmensnamens und der Branche.
-5. Optimierungen sollen KONKRET und UMSETZBAR sein, nicht generisch.
+5. Drei konkrete HANDLUNGSEMPFEHLUNGEN für den Webseiten-Betreiber. Sie sollen sich so anhören, als würdest du sie 1:1 in einer Akquise-E-Mail an den Kunden schreiben (Auftrag: spätere Umsetzung durch dich).
+6. Jeder Punkt hat eine kurze ÜBERSCHRIFT (wie im E-Mail-Template über dem Absatz) und einen EMPFEHLUNGSTEXT:
+   - titel: prägnant (max. ca. 80 Zeichen), beschreibt das Thema, keine vollständigen Sätze nötig.
+   - empfehlung: 1–2 Sätze, direkte „Sie“-Anrede an den Kunden, sachlich, konkret, umsetzbar; keine Meta-Sätze wie „Sie sollten überlegen…“.
 
 Antworte ausschließlich als JSON (kein Markdown, kein Text drumherum):
 {
   "optimierungen": [
-    "Optimierung 1 – konkret und auf dieses Unternehmen bezogen (1-2 Sätze)",
-    "Optimierung 2 – konkret und auf dieses Unternehmen bezogen (1-2 Sätze)",
-    "Optimierung 3 – konkret und auf dieses Unternehmen bezogen (1-2 Sätze)"
+    { "titel": "Kurze Überschrift für Punkt 1", "empfehlung": "Direkte Empfehlung in der Sie-Form, 1–2 Sätze." },
+    { "titel": "Kurze Überschrift für Punkt 2", "empfehlung": "…" },
+    { "titel": "Kurze Überschrift für Punkt 3", "empfehlung": "…" }
   ],
   "ansprechpartner": "Vollständiger Name aus dem Impressum oder leerer String",
   "zusammenfassung": "Was macht das Unternehmen und warum ist es als Lead interessant? (1-2 Sätze, nur belegte Fakten)",
@@ -144,8 +147,10 @@ Antworte ausschließlich als JSON (kein Markdown, kein Text drumherum):
 
     const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}';
 
+    type OptEntry = { titel?: string; empfehlung?: string } | string;
+
     let parsed: {
-      optimierungen: string[];
+      optimierungen: OptEntry[];
       ansprechpartner: string;
       zusammenfassung: string;
       websiteGeladen?: boolean;
@@ -155,15 +160,26 @@ Antworte ausschließlich als JSON (kein Markdown, kein Text drumherum):
     } catch {
       const match = rawText.match(/\{[\s\S]*\}/);
       parsed = match ? JSON.parse(match[0]) : {
-        optimierungen: ['Analyse konnte nicht durchgeführt werden.'],
+        optimierungen: [{ titel: 'Analyse', empfehlung: 'Die Analyse konnte nicht vollständig durchgeführt werden.' }],
         ansprechpartner: '',
         zusammenfassung: rawText.slice(0, 200),
         websiteGeladen: false,
       };
     }
 
+    const rawOpts = parsed.optimierungen?.slice(0, 3) ?? [];
+    const optimierungen = rawOpts.map((entry, i) => {
+      if (entry && typeof entry === 'object' && 'empfehlung' in entry) {
+        const titel = String((entry as { titel?: string }).titel ?? '').trim();
+        const empfehlung = String((entry as { empfehlung?: string }).empfehlung ?? '').trim();
+        return { titel: titel || `Empfehlung ${i + 1}`, empfehlung };
+      }
+      const s = String(entry ?? '').trim();
+      return { titel: `Empfehlung ${i + 1}`, empfehlung: s };
+    });
+
     return res.status(200).json({
-      optimierungen: parsed.optimierungen?.slice(0, 3) ?? [],
+      optimierungen,
       ansprechpartner: parsed.ansprechpartner ?? '',
       zusammenfassung: parsed.zusammenfassung ?? '',
       websiteGeladen: hatInhalt,
