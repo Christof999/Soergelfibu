@@ -33,7 +33,8 @@ const defaultFirma: Firma = {
   nextRechnungNr: 1,
   terminUrl: 'https://cal.com/',
   dashboardSteuerSchaetzungProzent: 30,
-  kleinunternehmerRegelung: false,
+  /** Standard: § 19 UStG — explizit „false“ in den Daten schaltet Umsatzsteuer-Ausweis wieder ein */
+  kleinunternehmerRegelung: true,
 };
 
 const emptyData: AppData = {
@@ -142,7 +143,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           firma: {
             ...emptyData.firma,
             ...rawFirma,
-            kleinunternehmerRegelung: !!rawFirma?.kleinunternehmerRegelung,
+            kleinunternehmerRegelung: rawFirma?.kleinunternehmerRegelung !== false,
             dashboardSteuerSchaetzungProzent:
               rawFirma?.dashboardSteuerSchaetzungProzent ?? emptyData.firma.dashboardSteuerSchaetzungProzent,
           },
@@ -365,7 +366,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       firma: {
         ...emptyData.firma,
         ...imported.firma,
-        kleinunternehmerRegelung: !!(imported.firma as Firma | undefined)?.kleinunternehmerRegelung,
+        kleinunternehmerRegelung: (imported.firma as Firma | undefined)?.kleinunternehmerRegelung !== false,
       },
       projekte: imported.projekte ?? [],
       leads: imported.leads ?? [],

@@ -4,6 +4,7 @@ import { Plus, Trash2, ChevronDown } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { Dokument, Dokumentposition, DokumentTyp, Artikel } from '../types';
 import { berechneGesamtsummen, fmtEur } from '../utils/berechnungen';
+import { KLEINUNTERNEHMER_HINWEIS_USTG } from '../utils/steuern';
 import { useApp } from '../context/AppContext';
 import { format } from 'date-fns';
 
@@ -366,7 +367,7 @@ export default function DokumentEditor({ typ, initial, onSave, onCancel }: Props
               </div>
               {ku && (
                 <p className="text-[10px] text-gray-600 leading-snug pt-1">
-                  Kleinunternehmerregelung § 19 UStG — ohne Umsatzsteuerausweis.
+                  {KLEINUNTERNEHMER_HINWEIS_USTG}
                 </p>
               )}
             </div>
