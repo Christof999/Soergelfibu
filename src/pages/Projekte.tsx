@@ -226,7 +226,9 @@ export default function Projekte() {
       <ConfirmDialog
         open={!!deleteId}
         onClose={() => setDeleteId(null)}
-        onConfirm={() => deleteProjekt(deleteId!)}
+        onConfirm={async () => {
+          await deleteProjekt(deleteId!);
+        }}
         title="Projekt löschen"
         message="Soll dieses Projekt wirklich gelöscht werden? Alle Zugänge und Kommunikationseinträge werden ebenfalls gelöscht."
       />

@@ -541,8 +541,8 @@ export default function Fibu() {
         onClose={() => setDelId(null)}
         title="Eingangsrechnung löschen?"
         message="Der Eintrag wird entfernt. Gespeicherte PDFs werden mitgelöscht."
-        onConfirm={() => {
-          if (delId) void deleteEingangsrechnung(delId);
+        onConfirm={async () => {
+          if (delId) await deleteEingangsrechnung(delId);
         }}
       />
     </div>

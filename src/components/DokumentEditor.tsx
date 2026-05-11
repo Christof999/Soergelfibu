@@ -206,7 +206,7 @@ export default function DokumentEditor({ typ, initial, onSave, onCancel }: Props
   const typLabel = typ === 'angebot' ? 'Angebot' : 'Rechnung';
   const today = format(new Date(), 'yyyy-MM-dd');
 
-  const { register, handleSubmit } = useForm<DokumentForm>({
+  const { register, handleSubmit, reset } = useForm<DokumentForm>({
     defaultValues: {
       kundeId: initial?.kundeId ?? '',
       datum: initial?.datum?.slice(0, 10) ?? today,
@@ -223,6 +223,24 @@ export default function DokumentEditor({ typ, initial, onSave, onCancel }: Props
   const [positionen, setPositionen] = useState<Dokumentposition[]>(
     initial?.positionen ?? []
   );
+
+  useEffect(() => {
+    const d = format(new Date(), 'yyyy-MM-dd');
+    reset({
+      kundeId: initial?.kundeId ?? '',
+      datum: initial?.datum?.slice(0, 10) ?? d,
+      gueltigBis: initial?.gueltigBis?.slice(0, 10) ?? '',
+      faelligAm: initial?.faelligAm?.slice(0, 10) ?? '',
+      betreff: initial?.betreff ?? '',
+      notizen: initial?.notizen ?? '',
+      zahlungsziel: initial?.zahlungsziel ?? 14,
+      skonto: initial?.skonto ?? 0,
+      status: initial?.status ?? 'entwurf',
+    });
+    setPositionen(initial?.positionen ?? []);
+    // Formular nur bei anderem Datensatz oder Typ zurücksetzen (kein Deep-Tracking von `initial`)
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- bewusst nur initial?.id + typ
+  }, [initial?.id, typ, reset]);
 
   const addPosition = () =>
     setPositionen(prev => [

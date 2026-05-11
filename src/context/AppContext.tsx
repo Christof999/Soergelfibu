@@ -197,7 +197,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await persist({ ...data, kunden: [...data.kunden, kunde] });
   };
   const updateKunde = async (k: Kunde) => persist({ ...data, kunden: data.kunden.map(x => x.id === k.id ? k : x) });
-  const deleteKunde = async (id: string) => persist({ ...data, kunden: data.kunden.filter(x => x.id !== id) });
+  const deleteKunde = async (id: string) => {
+    const docIds = new Set(data.dokumente.filter(d => d.kundeId === id).map(d => d.id));
+    const dokumente = data.dokumente.filter(d => d.kundeId !== id);
+    const projekte = data.projekte.map(p => ({
+      ...p,
+      kundeId: p.kundeId === id ? '' : p.kundeId,
+      angebotId: p.angebotId && docIds.has(p.angebotId) ? '' : p.angebotId,
+    }));
+    const serviceVertraege = (data.serviceVertraege ?? []).filter(v => v.kundeId !== id);
+    await persist({
+      ...data,
+      kunden: data.kunden.filter(x => x.id !== id),
+      dokumente,
+      projekte,
+      serviceVertraege,
+    });
+  };
 
   // ── Artikel ───────────────────────────────────────────────────────────────
   const addArtikel = async (a: Omit<Artikel, 'id' | 'artikelnummer'>) => {

@@ -675,7 +675,7 @@ export default function ProjektDetail() {
       <Modal open={zugangModal} onClose={() => setZugangModal(false)} title={editZugang ? 'Zugang bearbeiten' : 'Zugang hinzufügen'} size="md">
         <ZugangForm initial={editZugang ?? undefined} onSave={saveZugang} onCancel={() => setZugangModal(false)} />
       </Modal>
-      <ConfirmDialog open={!!deleteZugangId} onClose={() => setDeleteZugangId(null)} onConfirm={() => deleteZugang(projekt.id, deleteZugangId!)} title="Zugang löschen" message="Soll dieser Zugang wirklich gelöscht werden?" />
+      <ConfirmDialog open={!!deleteZugangId} onClose={() => setDeleteZugangId(null)} onConfirm={async () => { await deleteZugang(projekt.id, deleteZugangId!); }} title="Zugang löschen" message="Soll dieser Zugang wirklich gelöscht werden?" />
 
       <Modal open={komModal} onClose={() => { setKomModal(false); setEditKom(null); }} title={editKom ? 'Eintrag bearbeiten' : 'Neuer Eintrag'} size="md">
         <KomForm
@@ -686,7 +686,7 @@ export default function ProjektDetail() {
           komId={editKom?.id ?? activeKomId}
         />
       </Modal>
-      <ConfirmDialog open={!!deleteKomId} onClose={() => setDeleteKomId(null)} onConfirm={() => deleteKommunikation(projekt.id, deleteKomId!)} title="Eintrag löschen" message="Soll dieser Kommunikationseintrag wirklich gelöscht werden?" />
+      <ConfirmDialog open={!!deleteKomId} onClose={() => setDeleteKomId(null)} onConfirm={async () => { await deleteKommunikation(projekt.id, deleteKomId!); }} title="Eintrag löschen" message="Soll dieser Kommunikationseintrag wirklich gelöscht werden?" />
     </div>
   );
 }

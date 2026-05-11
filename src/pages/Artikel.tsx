@@ -141,7 +141,7 @@ export default function ArtikelPage() {
         }
       />
 
-      <div className="p-8 space-y-4">
+      <div className="px-4 py-6 sm:px-8 sm:py-8 space-y-4 min-w-0">
         <div className="relative">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input
@@ -163,8 +163,8 @@ export default function ArtikelPage() {
             )}
           </div>
         ) : (
-          <div className="bg-dark-800 rounded-2xl border border-dark-700 overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="bg-dark-800 rounded-2xl border border-dark-700 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+            <table className="w-full text-sm min-w-[48rem]">
               <thead>
                 <tr className="bg-dark-900/60 text-left border-b border-dark-700">
                   <th className="px-5 py-3 text-xs font-semibold text-gray-500">Nr.</th>
@@ -213,7 +213,9 @@ export default function ArtikelPage() {
       <ConfirmDialog
         open={!!deleteId}
         onClose={() => setDeleteId(null)}
-        onConfirm={() => deleteArtikel(deleteId!)}
+        onConfirm={async () => {
+          await deleteArtikel(deleteId!);
+        }}
         title="Artikel löschen"
         message="Soll dieser Artikel wirklich gelöscht werden?"
       />
