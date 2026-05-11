@@ -224,7 +224,7 @@ function UploadZone({
     Array.from(files).forEach(file => {
       const id = uuidv4();
       // Dateinamen bereinigen (Leerzeichen → Unterstrich, Sonderzeichen entfernen)
-      const safeName = file.name.replace(/\s+/g, '_').replace(/[^\w.\-]/g, '');
+      const safeName = file.name.replace(/\s+/g, '_').replace(/[^\w.-]/g, '');
       const path = `projects/${user.uid}/${projektId}/${komId}/${id}_${safeName}`;
       const storageRef = ref(storage, path);
 

@@ -136,7 +136,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!userDocRef) return;
     setData(updated);
     await setDoc(userDocRef, sanitize(updated));
-  }, [userDocRef]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [userDocRef]);
 
   // ── Firma ─────────────────────────────────────────────────────────────────
   const updateFirma = async (firma: Firma) => persist({ ...data, firma });
@@ -249,6 +249,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- hook co-located with provider
 export function useApp() {
   const ctx = useContext(AppContext);
   if (!ctx) throw new Error('useApp must be used within AppProvider');
