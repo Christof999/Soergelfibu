@@ -7,14 +7,15 @@ import { de } from 'date-fns/locale';
 
 export default function Dashboard() {
   const { data } = useApp();
+  const ku = !!data.firma.kleinunternehmerRegelung;
   const { kunden, artikel, dokumente } = data;
 
   const angebote = dokumente.filter(d => d.typ === 'angebot');
   const rechnungen = dokumente.filter(d => d.typ === 'rechnung');
   const offeneRechnungen = rechnungen.filter(d => d.status !== 'bezahlt' && d.status !== 'storniert');
   const bezahlteRechnungen = rechnungen.filter(d => d.status === 'bezahlt');
-  const umsatz = bezahlteRechnungen.reduce((sum, d) => sum + berechneGesamtsummen(d.positionen).brutto, 0);
-  const offen = offeneRechnungen.reduce((sum, d) => sum + berechneGesamtsummen(d.positionen).brutto, 0);
+  const umsatz = bezahlteRechnungen.reduce((sum, d) => sum + berechneGesamtsummen(d.positionen, ku).brutto, 0);
+  const offen = offeneRechnungen.reduce((sum, d) => sum + berechneGesamtsummen(d.positionen, ku).brutto, 0);
 
   const recentDocs = [...dokumente]
     .sort((a, b) => new Date(b.erstelltAm).getTime() - new Date(a.erstelltAm).getTime())
@@ -90,7 +91,7 @@ export default function Dashboard() {
           <ul className="divide-y divide-dark-700">
             {recentDocs.map(doc => {
               const kunde = kunden.find(k => k.id === doc.kundeId);
-              const { brutto } = berechneGesamtsummen(doc.positionen);
+              const { brutto } = berechneGesamtsummen(doc.positionen, ku);
               return (
                 <li key={doc.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-dark-700/50 transition-colors">
                   <div className="flex items-center gap-3">

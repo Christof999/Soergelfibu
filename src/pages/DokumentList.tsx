@@ -19,6 +19,7 @@ interface Props {
 
 export default function DokumentList({ typ }: Props) {
   const { data, addDokument, updateDokument, deleteDokument, addProjekt } = useApp();
+  const ku = !!data.firma.kleinunternehmerRegelung;
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
@@ -137,7 +138,7 @@ export default function DokumentList({ typ }: Props) {
               <tbody className="divide-y divide-dark-700">
                 {filtered.map(doc => {
                   const kunde = data.kunden.find(k => k.id === doc.kundeId);
-                  const { brutto } = berechneGesamtsummen(doc.positionen);
+                  const { brutto } = berechneGesamtsummen(doc.positionen, ku);
                   return (
                     <tr key={doc.id} className="hover:bg-dark-700/50 transition-colors">
                       <td className="px-5 py-3 font-mono text-xs text-gray-400 font-medium">{doc.nummer}</td>

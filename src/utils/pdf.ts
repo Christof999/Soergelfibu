@@ -4,6 +4,7 @@ import { Dokument, Firma, Kunde } from '../types';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { berechneGesamtsummen } from './berechnungen';
+import { KLEINUNTERNEHMER_HINWEIS_USTG } from './steuern';
 
 // Anthrazit-Palette
 const ANTHRAZIT: [number, number, number] = [45, 55, 72];
@@ -20,7 +21,8 @@ function fmtEur(value: number) {
 
 export function generatePDF(dokument: Dokument, firma: Firma, kunde: Kunde) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const { netto, brutto } = berechneGesamtsummen(dokument.positionen);
+  const ku = !!firma.kleinunternehmerRegelung;
+  const { netto, brutto } = berechneGesamtsummen(dokument.positionen, ku);
   const typLabel = dokument.typ === 'angebot' ? 'Angebot' : 'Rechnung';
   const margin = 20;
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -42,7 +44,7 @@ export function generatePDF(dokument: Dokument, firma: Firma, kunde: Kunde) {
     `Tel: ${firma.telefon}`,
     `E-Mail: ${firma.email}`,
     firma.website ? `Web: ${firma.website}` : '',
-    firma.ustId ? `USt-Id: ${firma.ustId}` : '',
+    !ku && firma.ustId ? `USt-Id: ${firma.ustId}` : '',
   ].filter(Boolean);
   doc.text(firmaInfo, pageWidth - margin, 14, { align: 'right' });
 
@@ -110,7 +112,15 @@ export function generatePDF(dokument: Dokument, firma: Firma, kunde: Kunde) {
   autoTable(doc, {
     startY: y,
     margin: { left: margin, right: margin },
-    head: [['Pos.', 'Bezeichnung', 'Menge', 'Einheit', 'Einzelpreis', 'Rabatt', 'Gesamt']],
+    head: [[
+      'Pos.',
+      'Bezeichnung',
+      'Menge',
+      'Einheit',
+      ku ? 'Einzelpreis (Endbetrag)' : 'Einzelpreis',
+      'Rabatt',
+      ku ? 'Betrag' : 'Gesamt',
+    ]],
     body: dokument.positionen.map((pos, idx) => {
       const nettoBetrag = pos.menge * pos.einzelpreis * (1 - pos.rabatt / 100);
       return [
@@ -150,26 +160,37 @@ export function generatePDF(dokument: Dokument, firma: Firma, kunde: Kunde) {
     sy += 6.5;
   };
 
-  addSumRow('Nettobetrag:', fmtEur(netto));
+  if (ku) {
+    if (dokument.skonto > 0) {
+      addSumRow(`Skonto ${dokument.skonto}%:`, `– ${fmtEur(brutto * dokument.skonto / 100)}`);
+    }
+    sy += 1;
+    doc.setDrawColor(...ANTHRAZIT_LIGHT);
+    doc.setLineWidth(0.4);
+    doc.line(sumX, sy, pageWidth - margin, sy);
+    sy += 5;
+    addSumRow('Gesamtbetrag:', fmtEur(brutto), true, ANTHRAZIT);
+  } else {
+    addSumRow('Nettobetrag:', fmtEur(netto));
 
-  const mwstGruppen = new Map<number, number>();
-  dokument.positionen.forEach(pos => {
-    const betrag = pos.menge * pos.einzelpreis * (1 - pos.rabatt / 100);
-    mwstGruppen.set(pos.mwstSatz, (mwstGruppen.get(pos.mwstSatz) ?? 0) + betrag * (pos.mwstSatz / 100));
-  });
-  mwstGruppen.forEach((betrag, satz) => addSumRow(`MwSt. ${satz}%:`, fmtEur(betrag)));
+    const mwstGruppen = new Map<number, number>();
+    dokument.positionen.forEach(pos => {
+      const betrag = pos.menge * pos.einzelpreis * (1 - pos.rabatt / 100);
+      mwstGruppen.set(pos.mwstSatz, (mwstGruppen.get(pos.mwstSatz) ?? 0) + betrag * (pos.mwstSatz / 100));
+    });
+    mwstGruppen.forEach((betrag, satz) => addSumRow(`MwSt. ${satz}%:`, fmtEur(betrag)));
 
-  if (dokument.skonto > 0) {
-    addSumRow(`Skonto ${dokument.skonto}%:`, `– ${fmtEur(brutto * dokument.skonto / 100)}`);
+    if (dokument.skonto > 0) {
+      addSumRow(`Skonto ${dokument.skonto}%:`, `– ${fmtEur(brutto * dokument.skonto / 100)}`);
+    }
+
+    sy += 1;
+    doc.setDrawColor(...ANTHRAZIT_LIGHT);
+    doc.setLineWidth(0.4);
+    doc.line(sumX, sy, pageWidth - margin, sy);
+    sy += 5;
+    addSumRow('Gesamtbetrag:', fmtEur(brutto), true, ANTHRAZIT);
   }
-
-  // Trennlinie VOR Gesamtbetrag — jetzt NACH allen Zeilen gezeichnet
-  sy += 1;
-  doc.setDrawColor(...ANTHRAZIT_LIGHT);
-  doc.setLineWidth(0.4);
-  doc.line(sumX, sy, pageWidth - margin, sy);
-  sy += 5;
-  addSumRow('Gesamtbetrag:', fmtEur(brutto), true, ANTHRAZIT);
 
   // Fußtext
   let footY = Math.max(sy + 12, 240);
@@ -196,6 +217,15 @@ export function generatePDF(dokument: Dokument, firma: Firma, kunde: Kunde) {
     footY += 5;
     doc.setTextColor(30, 30, 30);
     doc.text(`IBAN: ${firma.iban}  |  BIC: ${firma.bic}  |  ${firma.bank}`, margin, footY);
+    footY += 8;
+  }
+
+  if (ku) {
+    doc.setFontSize(8);
+    doc.setTextColor(60, 60, 60);
+    const kuLines = doc.splitTextToSize(KLEINUNTERNEHMER_HINWEIS_USTG, pageWidth - 2 * margin);
+    doc.text(kuLines, margin, footY);
+    footY += kuLines.length * 4 + 6;
   }
 
   // Fußzeile

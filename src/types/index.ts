@@ -87,6 +87,8 @@ export interface Firma {
   nextAngebotNr: number;
   nextRechnungNr: number;
   terminUrl: string;
+  /** Keine Umsatzsteuer ausweisen (§ 19 UStG); Einzelpreise gelten als Netto/Endpreis */
+  kleinunternehmerRegelung: boolean;
 }
 
 // ─── Projektmanagement ────────────────────────────────────────────────────────
