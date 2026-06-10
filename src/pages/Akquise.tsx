@@ -2,14 +2,14 @@ import { useState } from 'react';
 import {
   Search, Star, Globe, Phone, Mail, MapPin, Loader2,
   Sparkles, ChevronDown, ChevronUp, ExternalLink, Trash2,
-  TrendingUp, Users, FileText, Send,
+  TrendingUp, Users, FileText, Send, Gauge,
 } from 'lucide-react';
 import EmailModal from '../components/EmailModal';
 import PageHeader from '../components/PageHeader';
 import { useApp } from '../context/AppContext';
 import { Lead, LeadAnalyse } from '../types';
 import type { AkquiseEmailTemplateKind } from '../utils/emailTemplate';
-import { normalizeOptimierungenFromApi, normalizeOptimierungenListe, sanitizeAnalyseZusammenfassungDisplay } from '../utils/leadAnalyse';
+import { normalizeOptimierungenFromApi, normalizeOptimierungenListe, parseOptimierungPunkt, sanitizeAnalyseZusammenfassungDisplay } from '../utils/leadAnalyse';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -194,6 +194,34 @@ function LeadKarte({
                 </ul>
               </div>
             )}
+            {lead.analyse.seoOptimierungen && lead.analyse.seoOptimierungen.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-gray-400 mb-1.5 flex items-center gap-1.5">
+                  <Gauge size={11} /> SEO-Kurzcheck
+                </p>
+                <ul className="space-y-2">
+                  {lead.analyse.seoOptimierungen
+                    .map((it, i) => parseOptimierungPunkt(it, i))
+                    .filter(p => p.titel || p.empfehlung)
+                    .map((punkt, i) => (
+                      <li key={i} className="flex items-start gap-2 text-xs text-gray-300">
+                        <span className="shrink-0 w-4 h-4 rounded-full bg-emerald-700/40 text-emerald-300 flex items-center justify-center text-xs font-bold mt-0.5">{i + 1}</span>
+                        <span className="min-w-0">
+                          {punkt.titel && (
+                            <span className="font-semibold text-gray-100 block">{punkt.titel}</span>
+                          )}
+                          {punkt.empfehlung && (
+                            <span className="text-gray-400 block mt-0.5">{punkt.empfehlung}</span>
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                </ul>
+                <p className="text-[11px] text-gray-600 mt-1.5">
+                  Kompakter Erstkontakt-Check, an Googles Primärquellen orientiert.
+                </p>
+              </div>
+            )}
             {lead.analyse.websiteGeladen === false && (
               <div className="flex items-start gap-1.5 px-3 py-2 bg-amber-900/20 border border-amber-800/40 rounded-lg text-xs text-amber-300">
                 <span className="shrink-0 mt-0.5">⚠</span>
@@ -310,14 +338,19 @@ export default function Akquise() {
       }
       const body = parsed.data!;
       if (!res.ok) throw new Error(body.error ?? 'Analyse fehlgeschlagen');
+      const kontaktEmail = typeof body.kontaktEmail === 'string' ? body.kontaktEmail.trim() : '';
       const analyse: LeadAnalyse = {
         optimierungen: normalizeOptimierungenFromApi(body.optimierungen),
+        seoOptimierungen: normalizeOptimierungenFromApi(body.seoOptimierungen),
         ansprechpartner: typeof body.ansprechpartner === 'string' ? body.ansprechpartner : '',
+        kontaktEmail,
         zusammenfassung: typeof body.zusammenfassung === 'string' ? body.zusammenfassung : '',
         websiteGeladen: typeof body.websiteGeladen === 'boolean' ? body.websiteGeladen : false,
         analysiertAm: typeof body.analysiertAm === 'string' ? body.analysiertAm : new Date().toISOString(),
       };
-      const updated = { ...lead, analyse };
+      // Gefundene Kontakt-E-Mail übernehmen, wenn der Lead noch keine hat (für E-Mail-Versand vorausgefüllt)
+      const email = lead.email?.trim() ? lead.email : kontaktEmail;
+      const updated = { ...lead, email, analyse };
       setSuchergebnisse(prev => prev.map(l => l.id === lead.id ? updated : l));
       if (isFromPotentiell || lead.stern) await upsertLead(updated);
     } catch (err) {
