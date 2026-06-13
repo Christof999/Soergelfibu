@@ -17,6 +17,12 @@ import { readApiJson } from '../utils/readApiJson';
 
 // ─── Hilfsfunktionen ─────────────────────────────────────────────────────────
 
+function hatSeoOptimierungen(lead: Lead): boolean {
+  const seo = lead.analyse?.seoOptimierungen;
+  if (!seo?.length) return false;
+  return normalizeOptimierungenListe(seo).some(p => p.titel || p.empfehlung);
+}
+
 function Sterne({ n, max = 5 }: { n: number; max?: number }) {
   return (
     <span className="flex items-center gap-0.5">
@@ -41,6 +47,7 @@ function LeadKarte({
   onDelete,
   analysierend,
   onEmailAnalyse,
+  onEmailSeo,
   onEmailStandard,
 }: {
   lead: Lead;
@@ -49,6 +56,7 @@ function LeadKarte({
   onDelete?: () => void;
   analysierend: boolean;
   onEmailAnalyse?: () => void;
+  onEmailSeo?: () => void;
   onEmailStandard?: () => void;
 }) {
   const [offen, setOffen] = useState(false);
@@ -152,10 +160,21 @@ function LeadKarte({
                 type="button"
                 onClick={onEmailAnalyse}
                 className="flex flex-1 min-h-[44px] sm:flex-initial items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-medium bg-primary-700/30 text-primary-200 border border-primary-600/40 rounded-xl hover:bg-primary-700/45 transition-colors"
-                title="E-Mail mit den drei Analyse-Punkten"
+                title="E-Mail mit den drei Website-Optimierungen"
               >
-                <Mail size={11} />
-                E-Mail (Analyse)
+                <TrendingUp size={11} />
+                E-Mail (Website)
+              </button>
+            )}
+            {onEmailSeo && lead.analyse && hatSeoOptimierungen(lead) && (
+              <button
+                type="button"
+                onClick={onEmailSeo}
+                className="flex flex-1 min-h-[44px] sm:flex-initial items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-medium bg-emerald-900/30 text-emerald-200 border border-emerald-700/40 rounded-xl hover:bg-emerald-900/45 transition-colors"
+                title="E-Mail mit den drei SEO-Empfehlungen"
+              >
+                <Gauge size={11} />
+                E-Mail (SEO)
               </button>
             )}
           </div>
@@ -470,6 +489,10 @@ export default function Akquise() {
                         const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
                         setEmailModal({ lead: live, mode: 'analyse' });
                       }}
+                      onEmailSeo={() => {
+                        const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
+                        setEmailModal({ lead: live, mode: 'seo' });
+                      }}
                     />
                   ))}
                 </div>
@@ -514,8 +537,12 @@ export default function Akquise() {
                           const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
                           setEmailModal({ lead: live, mode: 'analyse' });
                         }}
+                        onEmailSeo={() => {
+                          const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
+                          setEmailModal({ lead: live, mode: 'seo' });
+                        }}
                       />
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         <button
                           type="button"
                           onClick={() => {
@@ -524,9 +551,21 @@ export default function Akquise() {
                           }}
                           disabled={!lead.analyse}
                           className="flex items-center justify-center gap-2 px-4 py-3 min-h-[48px] w-full text-sm font-medium bg-primary-600/20 border border-primary-700/50 text-primary-200 rounded-xl hover:bg-primary-600/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                          title={!lead.analyse ? 'Zuerst KI-Analyse ausführen' : ''}
+                          title={!lead.analyse ? 'Zuerst KI-Analyse ausführen' : 'E-Mail mit Website-Optimierungen'}
                         >
-                          <Sparkles size={14} /> Mit Analyse
+                          <TrendingUp size={14} /> Website
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
+                            setEmailModal({ lead: live, mode: 'seo' });
+                          }}
+                          disabled={!hatSeoOptimierungen(lead)}
+                          className="flex items-center justify-center gap-2 px-4 py-3 min-h-[48px] w-full text-sm font-medium bg-emerald-900/25 border border-emerald-800/50 text-emerald-200 rounded-xl hover:bg-emerald-900/35 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          title={!hatSeoOptimierungen(lead) ? 'Zuerst KI-Analyse mit SEO-Daten ausführen' : 'E-Mail mit SEO-Empfehlungen'}
+                        >
+                          <Gauge size={14} /> SEO
                         </button>
                         <button
                           type="button"
