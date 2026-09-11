@@ -42,6 +42,39 @@ die in Vercel hinterlegten Werte mit `vercel env pull .env.local`.
 5. Firebase-Variablen im Vercel-Projekt unter **Settings -> Environment Variables** setzen
 6. Die `vercel.json` sorgt für korrektes SPA-Routing
 
+## Akquise-Zugang für externe Personen
+
+Ein eingeschränkter Zugang gibt ausschließlich das Akquise-Tool frei. Angebote,
+Rechnungen, Kunden, Projekte, Fibu und alle Umsatzzahlen bleiben gesperrt.
+
+Aufbau in Firestore:
+
+| Dokument | Inhalt | Wer darf zugreifen |
+| --- | --- | --- |
+| `users/{uid}/data/main` | Firma, Kunden, Angebote, Rechnungen, Projekte, Fibu | nur der Inhaber |
+| `users/{uid}/data/akquise` | Leads + Terminlink | Inhaber **und** freigeschaltete Adressen |
+| `users/{uid}/mitglieder/{email}` | vergebene Zugänge | Inhaber (schreibend), das Mitglied liest nur seinen Eintrag |
+| `mitgliedschaften/{email}` | Zeiger auf den freigebenden Arbeitsbereich | das Mitglied selbst |
+
+Zugang einrichten:
+
+1. **Einstellungen → Akquise-Zugänge**: Google-Adresse der Person eintragen und
+   freischalten.
+2. Die Person meldet sich mit genau dieser Google-Adresse an und landet direkt
+   im Akquise-Tool — ohne weitere Menüpunkte.
+3. Entzogen wird ein Zugang über dasselbe Feld; er greift sofort nicht mehr.
+
+Die Trennung wird nicht in der Oberfläche entschieden, sondern in
+`firestore.rules`. Nach Änderungen an der Datei müssen die Regeln deployt werden:
+
+```bash
+firebase deploy --only firestore:rules
+```
+
+Beim ersten Start nach dem Update wandern vorhandene Leads automatisch aus
+`data/main` in `data/akquise`. Das Akquise-Dokument legt nur der Inhaber an —
+er sollte die App also einmal öffnen, bevor sich ein Mitglied anmeldet.
+
 ## Daten
 
 Alle Daten werden im LocalStorage des Browsers gespeichert. Regelmäßige JSON-Backups können unter **Einstellungen → Exportieren** erstellt werden.

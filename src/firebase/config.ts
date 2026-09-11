@@ -12,6 +12,15 @@ const firebaseConfig = {
   appId:             import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
+/**
+ * Die Werte werden beim Build eingesetzt. Fehlen sie in einer Vercel-Umgebung
+ * (z. B. nur für Production gesetzt, nicht für Preview), scheitert erst die
+ * Anmeldung mit einer kryptischen Meldung — deshalb hier benennen.
+ */
+export const fehlendeFirebaseKonfig = Object.entries(firebaseConfig)
+  .filter(([, v]) => !v)
+  .map(([k]) => `VITE_FIREBASE_${k.replace(/([A-Z])/g, '_$1').toUpperCase()}`);
+
 const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
