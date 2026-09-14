@@ -1,14 +1,14 @@
 import type { Lead, OptimierungPunkt } from '../types';
 import { normalizeOptimierungenListe } from './leadAnalyse';
 
-export type AkquiseEmailTemplateKind = 'analyse' | 'seo' | 'standard';
+export type AkquiseEmailTemplateKind = 'analyse' | 'seo' | 'standard' | 'software';
 
 export interface EmailVars {
   customerName: string;
   companyName: string;
   websiteUrl: string;
   ctaUrl: string;
-  /** „analyse“ = Website-Optimierungen; „seo“ = SEO-Kurzcheck; „standard“ = Ansprache ohne KI */
+  /** „analyse“ = Website; „seo“ = SEO-Kurzcheck; „standard“ = Ansprache; „software“ = drei WebApps */
   templateKind: AkquiseEmailTemplateKind;
   /** Nur bei templateKind „standard“: Fließtext zu Leistungen & Zusammenarbeit (Absätze mit Leerzeile) */
   standardLeistungstext?: string;
@@ -37,6 +37,40 @@ const FALLBACK_SEO_OPT: [string, string, string] = [
 
 /** CTA für Standard-Ansprache */
 export const DEFAULT_AKQUISE_KONTAKT_URL = 'https://soergel-design.de/kontakt';
+
+/** Übersicht der drei WebApps (Zeiterfassung, Rechnung, KI-Posteingang) */
+export const DEFAULT_SOFTWARE_URL = 'https://soergel-design.de/software';
+
+/** Die drei Programme von soergel-design.de/software — fest, ohne KI, im Modal editierbar */
+export const SOFTWARE_PUNKTE: [OptimierungPunkt, OptimierungPunkt, OptimierungPunkt] = [
+  {
+    titel: 'Zeiterfassung — Stempeln aufs Projekt',
+    empfehlung:
+      'Handy-App für alle, die draußen arbeiten, Büroansicht für Berichte, Lohn und Rechnungen. Gestempelt wird auf das Projekt; Fotos, Material und Notizen hängen am selben Eintrag. Funktioniert auch im Funkloch.',
+  },
+  {
+    titel: 'Auftrag & Rechnung — Belege entstehen auseinander',
+    empfehlung:
+      'Angebot, Lieferschein, Rechnung, Mahnung: jeder Beleg entsteht aus dem davor, keiner wird abgetippt. Die Nachkalkulation stellt Soll aus dem Angebot dem Ist aus der Zeiterfassung gegenüber — Zeile für Zeile.',
+  },
+  {
+    titel: 'KI-Posteingang — lesen, sortieren, weitergeben',
+    empfehlung:
+      'Mehrere Postfächer in einem Eingang. Die KI liest Mail und PDF-Anhang, ordnet fest zu und zieht bei Rechnungen die Zahlen. Was in die Buchhaltung gehört, geht von dort weiter — freigegeben wird weiterhin von Menschen.',
+  },
+];
+
+function punkteAlsStrings(
+  punkte: [OptimierungPunkt, OptimierungPunkt, OptimierungPunkt]
+): [string, string, string] {
+  return punkte.map(p => {
+    const t = String(p.titel ?? '').trim();
+    const e = String(p.empfehlung ?? '').trim();
+    if (!t) return e;
+    if (!e) return t;
+    return `${t}\n\n${e}`;
+  }) as [string, string, string];
+}
 
 /** Vorgefüllter Haupttext für die Standard-E-Mail (ohne KI); im Modal editierbar */
 export const DEFAULT_STANDARD_AKQUISE_LEISTUNGSTEXT = `Bei SØRGEL-design begleite ich Unternehmen wie Ihres, wenn es um greifbare digitale Lösungen geht: von einer klaren, schnellen Website über maßgeschneiderte WebApps und interne Tools (Abläufe, Daten, Schnittstellen) bis zu Automatisierungen, die im Alltag Zeit sparen.
@@ -109,6 +143,11 @@ export function buildSubjectSeo(lead: { name: string; website: string }): string
   return `SEO-Kurzcheck ${domain || lead.name} — 3 Punkte für Google`;
 }
 
+export function buildSubjectSoftware(lead: { name: string; website: string }): string {
+  const domain = lead.website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0];
+  return `Drei Programme für ${domain || lead.name} — Zeiterfassung, Rechnung & Posteingang`;
+}
+
 /** Startwerte für das E-Mail-Modal (Analyse oder Standard) */
 export function buildInitialEmailVars(
   lead: Lead,
@@ -128,6 +167,19 @@ export function buildInitialEmailVars(
       standardLeistungstext: DEFAULT_STANDARD_AKQUISE_LEISTUNGSTEXT,
       optimierungen: ['', '', ''] as [string, string, string],
       subject: buildSubjectStandard(lead),
+    };
+  }
+
+  if (mode === 'software') {
+    return {
+      customerName: analyse?.ansprechpartner || 'Guten Tag',
+      companyName: lead.name,
+      websiteUrl,
+      ctaUrl: DEFAULT_SOFTWARE_URL,
+      templateKind: 'software',
+      optimierungPunkte: SOFTWARE_PUNKTE,
+      optimierungen: punkteAlsStrings(SOFTWARE_PUNKTE),
+      subject: buildSubjectSoftware(lead),
     };
   }
 
@@ -161,10 +213,11 @@ export function buildInitialEmailVars(
 export function buildEmailHtml(vars: EmailVars): string {
   const isStandard = vars.templateKind === 'standard';
   const isSeo = vars.templateKind === 'seo';
+  const isSoftware = vars.templateKind === 'software';
   const isPunkteVorlage = !isStandard;
   const leistungRaw = (vars.standardLeistungstext ?? DEFAULT_STANDARD_AKQUISE_LEISTUNGSTEXT).trim();
 
-  const fallback = isSeo ? FALLBACK_SEO_OPT : FALLBACK_OPT;
+  const fallback = isSeo ? FALLBACK_SEO_OPT : isSoftware ? punkteAlsStrings(SOFTWARE_PUNKTE) : FALLBACK_OPT;
   const opts = vars.optimierungen.length === 3
     ? vars.optimierungen
     : fallback;
@@ -190,19 +243,25 @@ export function buildEmailHtml(vars: EmailVars): string {
       ? `Digitale Lösungen, WebApps, Media & Print — gern gemeinsam mit ${vars.companyName}.`
       : isSeo
         ? `3 SEO-Punkte für ${vars.websiteUrl} — wie Google Sie findet. 15 Min. Gespräch, kostenlos.`
-        : `3 konkrete Punkte auf ${vars.websiteUrl}, die Sie heute Kunden kosten — 15 Min. Gespräch, kostenlos.`);
+        : isSoftware
+          ? `Zeiterfassung, Rechnung und KI-Posteingang — drei Programme, in denen dieselbe Zahl nur einmal erfasst wird.`
+          : `3 konkrete Punkte auf ${vars.websiteUrl}, die Sie heute Kunden kosten — 15 Min. Gespräch, kostenlos.`);
 
-  const headerBadge = isStandard ? 'Ansprache' : isSeo ? 'SEO-Kurzcheck' : 'Kurzanalyse';
+  const headerBadge = isStandard ? 'Ansprache' : isSeo ? 'SEO-Kurzcheck' : isSoftware ? 'Software' : 'Kurzanalyse';
   const kicker = isStandard
     ? `Kennenlernen · ${esc(vars.companyName)}`
     : isSeo
       ? `SEO · ${esc(vars.companyName)}`
-      : `Analyse · ${esc(vars.companyName)}`;
+      : isSoftware
+        ? `WebApps · ${esc(vars.companyName)}`
+        : `Analyse · ${esc(vars.companyName)}`;
   const h1 = isStandard
     ? `Digitale Lösungen & <span style="color:#8A8178;">Branding</span><br>— gemeinsam denken wir weiter.`
     : isSeo
       ? `Bei Google <span style="color:#8A8178;">verschenken</span><br>Sie Sichtbarkeit.`
-      : `Ihre Website <span style="color:#8A8178;">verschenkt</span><br>gerade Kunden.`;
+      : isSoftware
+        ? `Dieselbe Zahl <span style="color:#8A8178;">nur einmal</span><br>erfassen.`
+        : `Ihre Website <span style="color:#8A8178;">verschenkt</span><br>gerade Kunden.`;
 
   const hasWeb = !!vars.websiteUrl.trim();
   const intro = isStandard
@@ -211,9 +270,11 @@ export function buildEmailHtml(vars: EmailVars): string {
       : `Hallo ${esc(vars.customerName)},<br><br>ich schreibe Ihnen, weil ich auf ${esc(vars.companyName)} gestoßen bin. Gern stelle ich mich kurz vor und sage, wie ich Sie bei digitalen Themen und einem stimmigen Markenauftritt unterstützen kann:`)
     : isSeo
       ? `Hallo ${esc(vars.customerName)},<br><br>ich habe mir <a href="https://${esc(vars.websiteUrl)}" style="color:#0A0A0A;text-decoration:underline;text-decoration-color:#C94A1C;text-underline-offset:3px;">${esc(vars.websiteUrl)}</a> angesehen und einen kurzen SEO-Check gemacht. Drei Punkte bremsen Ihre Auffindbarkeit bei Google — oft lassen sie sich ohne großen Aufwand verbessern.`
-      : `Hallo ${esc(vars.customerName)},<br><br>ich habe mir <a href="https://${esc(vars.websiteUrl)}" style="color:#0A0A0A;text-decoration:underline;text-decoration-color:#C94A1C;text-underline-offset:3px;">${esc(vars.websiteUrl)}</a> angesehen. Drei Punkte kosten Sie messbar Anfragen — lassen sich in wenigen Wochen lösen.`;
+      : isSoftware
+        ? `Hallo ${esc(vars.customerName)},<br><br>ich schreibe Ihnen, weil ich auf ${esc(vars.companyName)} gestoßen bin${hasWeb ? ` und Ihre Präsenz unter <a href="https://${esc(vars.websiteUrl)}" style="color:#0A0A0A;text-decoration:underline;text-decoration-color:#C94A1C;text-underline-offset:3px;">${esc(vars.websiteUrl)}</a> gesehen habe` : ''}. Neben Websites baue ich drei Programme für den laufenden Betrieb — entstanden im echten Einsatz, nicht am Reißbrett. Einzeln einsetzbar, zusammen ein Ablauf, in dem dieselbe Zahl nur einmal erfasst wird.`
+        : `Hallo ${esc(vars.customerName)},<br><br>ich habe mir <a href="https://${esc(vars.websiteUrl)}" style="color:#0A0A0A;text-decoration:underline;text-decoration-color:#C94A1C;text-underline-offset:3px;">${esc(vars.websiteUrl)}</a> angesehen. Drei Punkte kosten Sie messbar Anfragen — lassen sich in wenigen Wochen lösen.`;
 
-  const punkteSectionLabel = isSeo ? 'SEO-Kurzcheck' : 'Optimierungspotenziale';
+  const punkteSectionLabel = isSeo ? 'SEO-Kurzcheck' : isSoftware ? 'Drei Programme' : 'Optimierungspotenziale';
 
   const mainBlock = isStandard
     ? `
@@ -233,15 +294,21 @@ export function buildEmailHtml(vars: EmailVars): string {
           </td>
         </tr>`;
 
-  const accentTitle = isStandard ? 'Nächster Schritt' : 'Mein Angebot';
+  const accentTitle = isStandard || isSoftware ? 'Nächster Schritt' : 'Mein Angebot';
   const accentBody = isStandard
     ? `Wenn das für Sie interessant klingt, freue ich mich über eine kurze Rückmeldung — am einfachsten über das <span style="color:#BFB8AE;">Kontaktformular</span> auf meiner Seite. Von dort aus vereinbaren wir gern ein unverbindliches Gespräch und schauen, <span style="color:#BFB8AE;">wie wir gemeinsam an Ihren digitalen Lösungen oder am Branding weiterarbeiten können.</span>`
     : isSeo
       ? `15 Minuten am Telefon. Ich gehe die drei SEO-Punkte an Ihrer Seite durch — <span style="color:#BFB8AE;">kein Verkaufsgespräch, kein Haken.</span>`
-      : `15 Minuten am Telefon. Ich zeige Ihnen die drei Punkte konkret an Ihrer Seite — <span style="color:#BFB8AE;">kein Verkaufsgespräch, kein Haken.</span>`;
+      : isSoftware
+        ? `Die Programme werden im laufenden Betrieb angepasst, nicht als Standardpaket verkauft. 15 Minuten am Telefon reichen, um zu sehen, <span style="color:#BFB8AE;">ob Zeiterfassung, Rechnung oder Posteingang zu Ihrem Ablauf passen.</span>`
+        : `15 Minuten am Telefon. Ich zeige Ihnen die drei Punkte konkret an Ihrer Seite — <span style="color:#BFB8AE;">kein Verkaufsgespräch, kein Haken.</span>`;
 
   const ctaHref = esc(vars.ctaUrl);
-  const ctaLabel = isStandard ? 'Zum Kontaktformular' : 'Kostenloses 15-Min-Gespräch buchen&nbsp;&nbsp;→';
+  const ctaLabel = isStandard
+    ? 'Zum Kontaktformular'
+    : isSoftware
+      ? 'Die drei Programme ansehen&nbsp;&nbsp;→'
+      : 'Kostenloses 15-Min-Gespräch buchen&nbsp;&nbsp;→';
   const ctaSub = isStandard
     ? ''
     : `<td style="padding-left:14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;color:#8A8178;">
@@ -408,6 +475,39 @@ ${leistung}
 
 Wenn das für Sie interessant klingt, freue ich mich über eine kurze Rückmeldung — z. B. über mein Kontaktformular:
 ${vars.ctaUrl || DEFAULT_AKQUISE_KONTAKT_URL}
+
+Viele Grüße
+Christof Sörgel
+SØRGEL-design · www.soergel-design.de
+
+---
+Sie erhalten diese Mail einmalig. Nicht mehr kontaktieren: hallo@soergel-design.de`;
+  }
+
+  if (vars.templateKind === 'software') {
+    const hasWeb = !!vars.websiteUrl.trim();
+    const einleitung = hasWeb
+      ? `ich schreibe Ihnen, weil ich auf ${vars.companyName} gestoßen bin und Ihre Präsenz unter ${vars.websiteUrl} gesehen habe. Neben Websites baue ich drei Programme für den laufenden Betrieb — entstanden im echten Einsatz, nicht am Reißbrett. Einzeln einsetzbar, zusammen ein Ablauf, in dem dieselbe Zahl nur einmal erfasst wird:`
+      : `ich schreibe Ihnen, weil ich auf ${vars.companyName} gestoßen bin. Neben Websites baue ich drei Programme für den laufenden Betrieb — entstanden im echten Einsatz, nicht am Reißbrett. Einzeln einsetzbar, zusammen ein Ablauf, in dem dieselbe Zahl nur einmal erfasst wird:`;
+    const blocks = vars.optimierungPunkte
+      ? vars.optimierungPunkte.map((p, i) => {
+          const t = String(p.titel ?? '').trim();
+          const e = String(p.empfehlung ?? '').trim();
+          const head = t || `Programm ${i + 1}`;
+          const num = String(i + 1).padStart(2, '0');
+          return `${num} · ${head}${e ? `\n${e}` : ''}`;
+        })
+      : (vars.optimierungen.length === 3 ? vars.optimierungen : punkteAlsStrings(SOFTWARE_PUNKTE))
+          .map((s, i) => `${String(i + 1).padStart(2, '0')} · ${s}`);
+    return `Hallo ${vars.customerName},
+
+${einleitung}
+
+${blocks.join('\n\n')}
+
+Die Programme werden im laufenden Betrieb angepasst, nicht als Standardpaket verkauft. 15 Minuten am Telefon reichen, um zu sehen, ob Zeiterfassung, Rechnung oder Posteingang zu Ihrem Ablauf passen.
+
+Überblick: ${vars.ctaUrl || DEFAULT_SOFTWARE_URL}
 
 Viele Grüße
 Christof Sörgel

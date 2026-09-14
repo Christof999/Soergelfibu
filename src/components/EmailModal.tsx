@@ -14,7 +14,7 @@ import { readApiJson } from '../utils/readApiJson';
 
 interface Props {
   lead: Lead;
-  /** „analyse“ = Website-Optimierungen; „seo“ = SEO-Kurzcheck; „standard“ = Leistungs-Ansprache ohne KI */
+  /** „analyse“ = Website; „seo“ = SEO-Kurzcheck; „standard“ = Ansprache; „software“ = drei WebApps */
   emailMode: AkquiseEmailTemplateKind;
   onClose: () => void;
   /** Nach erfolgreichem Resend-Versand: Lead in Firebase aktualisieren (nur ★-Leads) */
@@ -160,13 +160,16 @@ export default function EmailModal({ lead, emailMode, onClose, onEmailSent }: Pr
   const inputCls = 'w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none';
   const isStandard = vars.templateKind === 'standard';
   const isSeo = vars.templateKind === 'seo';
+  const isSoftware = vars.templateKind === 'software';
   const isPunkteVorlage = !isStandard;
 
   const vorlagenLabel = isStandard
     ? 'Vorlage: Standard-Ansprache (ohne KI)'
     : isSeo
       ? 'Vorlage: SEO-Kurzcheck (3 Punkte)'
-      : 'Vorlage: Website-Analyse (3 Punkte)';
+      : isSoftware
+        ? 'Vorlage: Drei WebApps (Zeiterfassung, Rechnung, Posteingang)'
+        : 'Vorlage: Website-Analyse (3 Punkte)';
 
   return (
     <div className="fixed inset-0 z-50 flex bg-black/70 backdrop-blur-sm" onClick={onClose}>
@@ -257,7 +260,11 @@ export default function EmailModal({ lead, emailMode, onClose, onEmailSent }: Pr
                 </div>
                 <div className="space-y-1 mt-3">
                   <label className="block text-xs text-gray-500">
-                    {isStandard ? 'Link im Button (Kontakt)' : 'Termin-Link (CTA)'}
+                    {isStandard
+                      ? 'Link im Button (Kontakt)'
+                      : isSoftware
+                        ? 'Link im Button (Software-Seite)'
+                        : 'Termin-Link (CTA)'}
                   </label>
                   <input className={inputCls} value={vars.ctaUrl} onChange={e => set('ctaUrl', e.target.value)} placeholder="https://…" />
                 </div>
@@ -281,9 +288,9 @@ export default function EmailModal({ lead, emailMode, onClose, onEmailSent }: Pr
                 <div className="border-t border-dark-700 pt-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <p className="text-xs text-gray-500 uppercase tracking-wider">
-                      {isSeo ? '3 SEO-Empfehlungen' : '3 Optimierungen'}
+                      {isSeo ? '3 SEO-Empfehlungen' : isSoftware ? '3 Programme' : '3 Optimierungen'}
                     </p>
-                    {analyse && (
+                    {analyse && !isSoftware && (
                       <span className="text-xs text-emerald-400 flex items-center gap-1">
                         <RefreshCw size={10} /> KI
                       </span>
@@ -291,13 +298,23 @@ export default function EmailModal({ lead, emailMode, onClose, onEmailSent }: Pr
                   </div>
                   {isPunkteVorlage && ([0, 1, 2] as const).map(idx => (
                     <div key={idx} className="space-y-1">
-                      <label className="block text-xs text-gray-500">Punkt {idx + 1}</label>
+                      <label className="block text-xs text-gray-500">
+                        {isSoftware
+                          ? (['Zeiterfassung', 'Auftrag & Rechnung', 'KI-Posteingang'] as const)[idx]
+                          : `Punkt ${idx + 1}`}
+                      </label>
                       <textarea
-                        rows={3}
+                        rows={isSoftware ? 5 : 3}
                         className={inputCls}
                         value={vars.optimierungen[idx]}
                         onChange={e => setOpt(idx, e.target.value)}
-                        placeholder={isSeo ? `SEO-Empfehlung ${idx + 1}…` : `Optimierung ${idx + 1}…`}
+                        placeholder={
+                          isSeo
+                            ? `SEO-Empfehlung ${idx + 1}…`
+                            : isSoftware
+                              ? `Programm ${idx + 1}…`
+                              : `Optimierung ${idx + 1}…`
+                        }
                       />
                     </div>
                   ))}

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   Search, Star, Globe, Phone, Mail, MapPin, Loader2,
   Sparkles, ChevronDown, ChevronUp, ExternalLink, Trash2,
-  TrendingUp, Users, FileText, Send, Gauge,
+  TrendingUp, Users, FileText, Send, Gauge, Layers,
 } from 'lucide-react';
 import EmailModal from '../components/EmailModal';
 import PageHeader from '../components/PageHeader';
@@ -49,6 +49,7 @@ function LeadKarte({
   onEmailAnalyse,
   onEmailSeo,
   onEmailStandard,
+  onEmailSoftware,
 }: {
   lead: Lead;
   onStern: () => void;
@@ -58,6 +59,7 @@ function LeadKarte({
   onEmailAnalyse?: () => void;
   onEmailSeo?: () => void;
   onEmailStandard?: () => void;
+  onEmailSoftware?: () => void;
 }) {
   const [offen, setOffen] = useState(false);
 
@@ -153,6 +155,17 @@ function LeadKarte({
               >
                 <FileText size={11} />
                 Standard-E-Mail
+              </button>
+            )}
+            {onEmailSoftware && (
+              <button
+                type="button"
+                onClick={onEmailSoftware}
+                className="flex flex-1 min-h-[44px] sm:flex-initial items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-medium bg-sky-900/25 text-sky-200 border border-sky-800/40 rounded-xl hover:bg-sky-900/40 transition-colors"
+                title="E-Mail zu den drei WebApps (Zeiterfassung, Rechnung, Posteingang)"
+              >
+                <Layers size={11} />
+                E-Mail (Software)
               </button>
             )}
             {onEmailAnalyse && lead.analyse && (
@@ -485,6 +498,10 @@ export default function Akquise() {
                         const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
                         setEmailModal({ lead: live, mode: 'standard' });
                       }}
+                      onEmailSoftware={() => {
+                        const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
+                        setEmailModal({ lead: live, mode: 'software' });
+                      }}
                       onEmailAnalyse={() => {
                         const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
                         setEmailModal({ lead: live, mode: 'analyse' });
@@ -533,6 +550,10 @@ export default function Akquise() {
                           const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
                           setEmailModal({ lead: live, mode: 'standard' });
                         }}
+                        onEmailSoftware={() => {
+                          const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
+                          setEmailModal({ lead: live, mode: 'software' });
+                        }}
                         onEmailAnalyse={() => {
                           const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
                           setEmailModal({ lead: live, mode: 'analyse' });
@@ -542,7 +563,7 @@ export default function Akquise() {
                           setEmailModal({ lead: live, mode: 'seo' });
                         }}
                       />
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         <button
                           type="button"
                           onClick={() => {
@@ -576,6 +597,17 @@ export default function Akquise() {
                           className="flex items-center justify-center gap-2 px-4 py-3 min-h-[48px] w-full text-sm font-medium bg-dark-800 border border-dark-700 text-gray-300 rounded-xl hover:bg-dark-700 hover:text-gray-100 transition-colors"
                         >
                           <FileText size={14} /> Standard
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
+                            setEmailModal({ lead: live, mode: 'software' });
+                          }}
+                          className="flex items-center justify-center gap-2 px-4 py-3 min-h-[48px] w-full text-sm font-medium bg-sky-900/25 border border-sky-800/40 text-sky-200 rounded-xl hover:bg-sky-900/40 transition-colors"
+                          title="E-Mail zu den drei WebApps"
+                        >
+                          <Layers size={14} /> Software
                         </button>
                       </div>
                     </div>
