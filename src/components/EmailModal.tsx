@@ -19,6 +19,8 @@ interface Props {
   onClose: () => void;
   /** Nach erfolgreichem Resend-Versand: Lead in Firebase aktualisieren (nur ★-Leads) */
   onEmailSent?: (leadId: string, versendetAmIso: string) => void | Promise<void>;
+  /** Kontakt-E-Mail aus Impressum gefunden — Lead aktualisieren */
+  onKontaktGefunden?: (leadId: string, email: string) => void | Promise<void>;
 }
 
 function toast(msg: string) {
@@ -29,7 +31,7 @@ function toast(msg: string) {
   setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 350); }, 2000);
 }
 
-export default function EmailModal({ lead, emailMode, onClose, onEmailSent }: Props) {
+export default function EmailModal({ lead, emailMode, onClose, onEmailSent, onKontaktGefunden }: Props) {
   const { data } = useApp();
   const firma = data.firma;
   const analyse = lead.analyse;
@@ -37,6 +39,7 @@ export default function EmailModal({ lead, emailMode, onClose, onEmailSent }: Pr
   const [recipientEmail, setRecipientEmail] = useState(() =>
     (lead.email || lead.analyse?.kontaktEmail || '').trim()
   );
+  const [impressumStatus, setImpressumStatus] = useState<'idle' | 'suche' | 'gefunden' | 'nichts'>('idle');
 
   const [vars, setVars] = useState<EmailVars>(() =>
     buildInitialEmailVars(lead, firma.terminUrl || '', emailMode)
@@ -65,6 +68,42 @@ export default function EmailModal({ lead, emailMode, onClose, onEmailSent }: Pr
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, [onClose]);
+
+  useEffect(() => {
+    const vorhanden = (lead.email || lead.analyse?.kontaktEmail || recipientEmail).trim();
+    if (vorhanden.includes('@')) return;
+    const website = (lead.website || '').trim();
+    if (!website) {
+      setImpressumStatus('nichts');
+      return;
+    }
+    let stop = false;
+    setImpressumStatus('suche');
+    (async () => {
+      try {
+        const res = await fetch('/api/analyse', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ website, name: lead.name, nurKontakt: true }),
+        });
+        const parsed = await readApiJson<{ kontaktEmail?: string; error?: string }>(res);
+        if (stop) return;
+        const email = typeof parsed.data?.kontaktEmail === 'string' ? parsed.data.kontaktEmail.trim() : '';
+        if (email.includes('@')) {
+          setRecipientEmail(email);
+          setImpressumStatus('gefunden');
+          await onKontaktGefunden?.(lead.id, email);
+        } else {
+          setImpressumStatus('nichts');
+        }
+      } catch {
+        if (!stop) setImpressumStatus('nichts');
+      }
+    })();
+    return () => { stop = true; };
+    // Nur einmal beim Öffnen: Website/Lead sind pro Modal-Instanz (key am Parent) fest.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lead.id, lead.website]);
 
   const set = (k: keyof EmailVars, v: string) => setVars(p => ({ ...p, [k]: v }));
   const setOpt = (idx: 0 | 1 | 2, v: string) =>
@@ -235,7 +274,10 @@ export default function EmailModal({ lead, emailMode, onClose, onEmailSent }: Pr
                   autoComplete="email"
                 />
                 <p className="text-[11px] text-gray-600 leading-snug">
-                  Für Resend und Mail-App. Aus dem Lead oder dem Impressum der Analyse vorausgefüllt.
+                  {impressumStatus === 'suche' && 'Lese Kontakt-E-Mail aus dem Impressum (Browserbase)…'}
+                  {impressumStatus === 'gefunden' && 'Aus dem Impressum übernommen.'}
+                  {impressumStatus === 'nichts' && 'Im Impressum keine Adresse gefunden — bitte manuell eintragen.'}
+                  {impressumStatus === 'idle' && 'Für Resend und Mail-App. Aus Lead oder Impressum vorausgefüllt.'}
                 </p>
               </div>
 

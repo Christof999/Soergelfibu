@@ -221,7 +221,10 @@ async function ladeSeitenParallel(hauptUrl: string, impressumKandidaten: string[
  * Startseite mit Browserbase + Playwright (JS ausgeführt). Nur wenn Env gesetzt.
  * Vercel: BROWSERBASE_API_KEY (optional BROWSERBASE_PROJECT_ID).
  */
-async function fetchSeiteBrowserbase(url: string): Promise<{ text: string; emails: string[] }> {
+async function fetchSeiteBrowserbase(
+  url: string,
+  extraEmailUrls: string[] = []
+): Promise<{ text: string; emails: string[] }> {
   const apiKey = process.env.BROWSERBASE_API_KEY?.trim();
   if (!apiKey) return { text: '', emails: [] };
   try {
@@ -245,7 +248,23 @@ async function fetchSeiteBrowserbase(url: string): Promise<{ text: string; email
       await new Promise<void>(resolve => setTimeout(resolve, 1200));
       let html = await page.content();
       if (html.length > MAX_HTML_RAW_CHARS) html = html.slice(0, MAX_HTML_RAW_CHARS);
-      return { text: htmlZuKlartext(html), emails: extrahiereEmails(html) };
+      const emails = new Set(extrahiereEmails(html));
+      const text = htmlZuKlartext(html);
+      if (emails.size === 0) {
+        for (const u of extraEmailUrls.slice(0, 3)) {
+          try {
+            await page.goto(u, { waitUntil: 'domcontentloaded', timeout: 18000 });
+            await new Promise<void>(resolve => setTimeout(resolve, 800));
+            let extra = await page.content();
+            if (extra.length > MAX_HTML_RAW_CHARS) extra = extra.slice(0, MAX_HTML_RAW_CHARS);
+            extrahiereEmails(extra).forEach(e => emails.add(e));
+            if (emails.size > 0) break;
+          } catch {
+            /* nächste URL */
+          }
+        }
+      }
+      return { text, emails: [...emails] };
     } finally {
       await browser.close().catch(() => {});
     }
@@ -552,9 +571,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const website = String(body.website ?? '');
     const name = String(body.name ?? '');
     const branche = body.branche != null ? String(body.branche) : '';
+    const nurKontakt = body.nurKontakt === true;
 
     const GEMINI_KEY = process.env.GEMINI_API_KEY;
-    if (!GEMINI_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY nicht konfiguriert' });
+    if (!nurKontakt && !GEMINI_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY nicht konfiguriert' });
 
     let hauptseite = '';
     let impressum = '';
@@ -570,10 +590,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           `${basis}/impressum`,
           `${basis}/impressum.html`,
           `${basis}/impressum.php`,
+          `${basis}/impressum/`,
           `${basis}/ueber-uns`,
           `${basis}/kontakt`,
+          `${basis}/kontakt.html`,
           `${basis}/de/impressum`,
           `${basis}/legal/imprint`,
+          `${basis}/imprint`,
         ];
         const geladen = await ladeSeitenParallel(hauptUrlNorm, impressumKandidaten);
         hauptseite = geladen.startseite;
@@ -586,16 +609,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     /** HTTP oft nur Bot-Schutz/leere Shell → dann Browserbase versuchen */
     const startZuDuenn = hauptseite.trim().length < 120;
     const bbKey = process.env.BROWSERBASE_API_KEY?.trim();
-    if (bbKey && hauptUrlNorm && (!hatInhalt || startZuDuenn)) {
-      const bb = await fetchSeiteBrowserbase(hauptUrlNorm);
+    const brauchtBrowserInhalt = !!(bbKey && hauptUrlNorm && (!hatInhalt || startZuDuenn));
+    const brauchtBrowserEmail = !!(bbKey && hauptUrlNorm && gefundeneEmails.length === 0);
+
+    if (brauchtBrowserInhalt) {
+      const bb = await fetchSeiteBrowserbase(
+        hauptUrlNorm!,
+        brauchtBrowserEmail ? impressumKandidaten : []
+      );
       if (bb.text.length >= 40 && bb.text.length > hauptseite.length) {
         hauptseite = bb.text.slice(0, 4500);
         fetchMethode = 'browserbase';
       }
       if (bb.emails.length) gefundeneEmails = [...new Set([...gefundeneEmails, ...bb.emails])];
+    } else if (brauchtBrowserEmail) {
+      /** Impressum/Kontakt im echten Browser — bevor Gemini startet, sonst wird das auf Vercel oft abgeschnitten. */
+      const bbEmails = await fetchEmailsBrowserbase([...impressumKandidaten, hauptUrlNorm!]);
+      if (bbEmails.length) gefundeneEmails = bbEmails;
     }
 
     hatInhalt = hauptseite.length > 50 || impressum.length > 50;
+
+    let siteHost: string | null = null;
+    try {
+      siteHost = hauptUrlNorm ? new URL(hauptUrlNorm).hostname : null;
+    } catch {
+      siteHost = null;
+    }
+
+    if (nurKontakt) {
+      return res.status(200).json({
+        kontaktEmail: waehleBesteEmail(gefundeneEmails, siteHost),
+        websiteGeladen: hatInhalt,
+        seitenabrufMethode: fetchMethode,
+      });
+    }
 
     let kontextHerkunft =
       fetchMethode === 'browserbase'
@@ -604,7 +652,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     let prompt = buildAnalysePrompt(name, branche, website, hauptUrlNorm, hauptseite, impressum, kontextHerkunft, hatInhalt);
 
-    let geminiOut = await rufeGeminiAuf(prompt, GEMINI_KEY, 48_000);
+    let geminiOut = await rufeGeminiAuf(prompt, GEMINI_KEY!, 48_000);
     if (!geminiOut.ok) {
       if (geminiOut.status != null && geminiOut.geminiData != null) {
         const errMsg =
@@ -625,7 +673,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     /** KI lieferte kein brauchbares JSON oder Fallback — einmal Browserbase + zweiter Gemini-Lauf (echtes Rendering). */
     if (geminiAntwortIstFallback(parsed) && bbKey && hauptUrlNorm && fetchMethode === 'http') {
-      const bb = await fetchSeiteBrowserbase(hauptUrlNorm);
+      const bb = await fetchSeiteBrowserbase(
+        hauptUrlNorm,
+        gefundeneEmails.length === 0 ? impressumKandidaten : []
+      );
       if (bb.emails.length) gefundeneEmails = [...new Set([...gefundeneEmails, ...bb.emails])];
       if (bb.text.length >= 80) {
         hauptseite = bb.text.slice(0, 4500);
@@ -634,7 +685,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         kontextHerkunft =
           'Die Startseite wurde in einem echten Browser (Browserbase, JavaScript aktiv) geladen — zweiter Versuch nach unbrauchbarer KI-Antwort beim reinen HTTP-Abruf.';
         prompt = buildAnalysePrompt(name, branche, website, hauptUrlNorm, hauptseite, impressum, kontextHerkunft, hatInhalt);
-        geminiOut = await rufeGeminiAuf(prompt, GEMINI_KEY, 48_000);
+        geminiOut = await rufeGeminiAuf(prompt, GEMINI_KEY!, 48_000);
         if (geminiOut.ok) {
           parsed = parseGeminiJson(geminiOut.rawText);
         }
@@ -643,18 +694,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const opts = optimierungenAusAntwort(Array.isArray(parsed.optimierungen) ? parsed.optimierungen : []);
     const seoOpts = optimierungenAusAntwort(Array.isArray(parsed.seoOptimierungen) ? parsed.seoOptimierungen : []);
-
-    /** Noch keine E-Mail über HTTP gefunden? Impressum/Kontakt im echten Browser nachladen (Bot-Schutz/JS). */
-    if (gefundeneEmails.length === 0 && bbKey && hauptUrlNorm) {
-      const bbEmails = await fetchEmailsBrowserbase([...impressumKandidaten, hauptUrlNorm]);
-      if (bbEmails.length) gefundeneEmails = bbEmails;
-    }
-    let siteHost: string | null = null;
-    try {
-      siteHost = hauptUrlNorm ? new URL(hauptUrlNorm).hostname : null;
-    } catch {
-      siteHost = null;
-    }
     const kontaktEmail = waehleBesteEmail(gefundeneEmails, siteHost);
 
     return res.status(200).json({

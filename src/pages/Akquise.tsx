@@ -17,6 +17,25 @@ import { readApiJson } from '../utils/readApiJson';
 
 // ─── Hilfsfunktionen ─────────────────────────────────────────────────────────
 
+function sichtbareKontaktEmail(lead: Lead): string {
+  return (lead.email || lead.analyse?.kontaktEmail || '').trim();
+}
+
+function leadFuerEmail(lead: Lead, stored: Lead[] | undefined): Lead {
+  const fromStore = (stored ?? []).find(l => l.id === lead.id);
+  if (!fromStore) {
+    const email = sichtbareKontaktEmail(lead);
+    return email && email !== lead.email ? { ...lead, email } : lead;
+  }
+  const email = sichtbareKontaktEmail(lead) || sichtbareKontaktEmail(fromStore);
+  return {
+    ...fromStore,
+    ...lead,
+    email,
+    analyse: lead.analyse ?? fromStore.analyse,
+  };
+}
+
 function hatSeoOptimierungen(lead: Lead): boolean {
   const seo = lead.analyse?.seoOptimierungen;
   if (!seo?.length) return false;
@@ -62,6 +81,7 @@ function LeadKarte({
   onEmailSoftware?: () => void;
 }) {
   const [offen, setOffen] = useState(false);
+  const anzeigeEmail = sichtbareKontaktEmail(lead);
 
   return (
     <div className={`bg-dark-800 border rounded-2xl overflow-hidden transition-all ${
@@ -87,7 +107,14 @@ function LeadKarte({
                   </a>
                 </p>
               )}
-              {lead.email && <p className="flex items-center gap-1.5"><Mail size={10} /><a href={`mailto:${lead.email}`} className="hover:text-primary-400">{lead.email}</a></p>}
+              {anzeigeEmail && (
+                <p className="flex items-center gap-1.5">
+                  <Mail size={10} />
+                  <a href={`mailto:${anzeigeEmail}`} className="hover:text-primary-400">
+                    {anzeigeEmail}
+                  </a>
+                </p>
+              )}
               {lead.akquiseEmailZuletztVersendetAm && (
                 <p className="flex items-center gap-1.5 text-emerald-400/90 mt-1">
                   <Send size={10} className="shrink-0" />
@@ -339,6 +366,23 @@ export default function Akquise() {
     await deleteLead(lead.id);
   };
 
+  const handleKontaktAusImpressum = async (leadId: string, email: string) => {
+    const trimmed = email.trim();
+    if (!trimmed.includes('@')) return;
+    setSuchergebnisse(prev =>
+      prev.map(l => (l.id === leadId ? { ...l, email: l.email?.trim() || trimmed } : l))
+    );
+    setEmailModal(prev =>
+      prev && prev.lead.id === leadId
+        ? { ...prev, lead: { ...prev.lead, email: prev.lead.email?.trim() || trimmed } }
+        : prev
+    );
+    const inFirestore = (data.leads ?? []).find(l => l.id === leadId);
+    if (inFirestore && !inFirestore.email?.trim()) {
+      await upsertLead({ ...inFirestore, email: trimmed });
+    }
+  };
+
   const handleAkquiseEmailGesendet = async (leadId: string, versendetAmIso: string) => {
     const inFirestore = (data.leads ?? []).find(l => l.id === leadId);
     if (inFirestore) {
@@ -495,20 +539,16 @@ export default function Akquise() {
                       onAnalyse={() => analysieren(lead)}
                       analysierend={!!analysierend[lead.id]}
                       onEmailStandard={() => {
-                        const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
-                        setEmailModal({ lead: live, mode: 'standard' });
+                        setEmailModal({ lead: leadFuerEmail(lead, data.leads), mode: 'standard' });
                       }}
                       onEmailSoftware={() => {
-                        const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
-                        setEmailModal({ lead: live, mode: 'software' });
+                        setEmailModal({ lead: leadFuerEmail(lead, data.leads), mode: 'software' });
                       }}
                       onEmailAnalyse={() => {
-                        const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
-                        setEmailModal({ lead: live, mode: 'analyse' });
+                        setEmailModal({ lead: leadFuerEmail(lead, data.leads), mode: 'analyse' });
                       }}
                       onEmailSeo={() => {
-                        const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
-                        setEmailModal({ lead: live, mode: 'seo' });
+                        setEmailModal({ lead: leadFuerEmail(lead, data.leads), mode: 'seo' });
                       }}
                     />
                   ))}
@@ -547,28 +587,23 @@ export default function Akquise() {
                         onDelete={() => deleteLead(lead.id)}
                         analysierend={!!analysierend[lead.id]}
                         onEmailStandard={() => {
-                          const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
-                          setEmailModal({ lead: live, mode: 'standard' });
+                          setEmailModal({ lead: leadFuerEmail(lead, data.leads), mode: 'standard' });
                         }}
                         onEmailSoftware={() => {
-                          const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
-                          setEmailModal({ lead: live, mode: 'software' });
+                          setEmailModal({ lead: leadFuerEmail(lead, data.leads), mode: 'software' });
                         }}
                         onEmailAnalyse={() => {
-                          const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
-                          setEmailModal({ lead: live, mode: 'analyse' });
+                          setEmailModal({ lead: leadFuerEmail(lead, data.leads), mode: 'analyse' });
                         }}
                         onEmailSeo={() => {
-                          const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
-                          setEmailModal({ lead: live, mode: 'seo' });
+                          setEmailModal({ lead: leadFuerEmail(lead, data.leads), mode: 'seo' });
                         }}
                       />
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         <button
                           type="button"
                           onClick={() => {
-                            const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
-                            setEmailModal({ lead: live, mode: 'analyse' });
+                            setEmailModal({ lead: leadFuerEmail(lead, data.leads), mode: 'analyse' });
                           }}
                           disabled={!lead.analyse}
                           className="flex items-center justify-center gap-2 px-4 py-3 min-h-[48px] w-full text-sm font-medium bg-primary-600/20 border border-primary-700/50 text-primary-200 rounded-xl hover:bg-primary-600/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
@@ -579,8 +614,7 @@ export default function Akquise() {
                         <button
                           type="button"
                           onClick={() => {
-                            const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
-                            setEmailModal({ lead: live, mode: 'seo' });
+                            setEmailModal({ lead: leadFuerEmail(lead, data.leads), mode: 'seo' });
                           }}
                           disabled={!hatSeoOptimierungen(lead)}
                           className="flex items-center justify-center gap-2 px-4 py-3 min-h-[48px] w-full text-sm font-medium bg-emerald-900/25 border border-emerald-800/50 text-emerald-200 rounded-xl hover:bg-emerald-900/35 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
@@ -591,8 +625,7 @@ export default function Akquise() {
                         <button
                           type="button"
                           onClick={() => {
-                            const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
-                            setEmailModal({ lead: live, mode: 'standard' });
+                            setEmailModal({ lead: leadFuerEmail(lead, data.leads), mode: 'standard' });
                           }}
                           className="flex items-center justify-center gap-2 px-4 py-3 min-h-[48px] w-full text-sm font-medium bg-dark-800 border border-dark-700 text-gray-300 rounded-xl hover:bg-dark-700 hover:text-gray-100 transition-colors"
                         >
@@ -601,8 +634,7 @@ export default function Akquise() {
                         <button
                           type="button"
                           onClick={() => {
-                            const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
-                            setEmailModal({ lead: live, mode: 'software' });
+                            setEmailModal({ lead: leadFuerEmail(lead, data.leads), mode: 'software' });
                           }}
                           className="flex items-center justify-center gap-2 px-4 py-3 min-h-[48px] w-full text-sm font-medium bg-sky-900/25 border border-sky-800/40 text-sky-200 rounded-xl hover:bg-sky-900/40 transition-colors"
                           title="E-Mail zu den drei WebApps"
@@ -625,6 +657,7 @@ export default function Akquise() {
           emailMode={emailModal.mode}
           onClose={() => setEmailModal(null)}
           onEmailSent={handleAkquiseEmailGesendet}
+          onKontaktGefunden={handleKontaktAusImpressum}
         />
       )}
     </div>
