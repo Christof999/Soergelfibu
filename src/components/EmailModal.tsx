@@ -14,11 +14,13 @@ import { readApiJson } from '../utils/readApiJson';
 
 interface Props {
   lead: Lead;
-  /** „analyse“ = drei KI-Punkte; „standard“ = Leistungs-Ansprache ohne KI */
+  /** „analyse“ = Website; „seo“ = SEO-Kurzcheck; „standard“ = Ansprache; „software“ = drei WebApps */
   emailMode: AkquiseEmailTemplateKind;
   onClose: () => void;
   /** Nach erfolgreichem Resend-Versand: Lead in Firebase aktualisieren (nur ★-Leads) */
   onEmailSent?: (leadId: string, versendetAmIso: string) => void | Promise<void>;
+  /** Kontakt-E-Mail aus Impressum gefunden — Lead aktualisieren */
+  onKontaktGefunden?: (leadId: string, email: string) => void | Promise<void>;
 }
 
 function toast(msg: string) {
@@ -29,12 +31,15 @@ function toast(msg: string) {
   setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 350); }, 2000);
 }
 
-export default function EmailModal({ lead, emailMode, onClose, onEmailSent }: Props) {
+export default function EmailModal({ lead, emailMode, onClose, onEmailSent, onKontaktGefunden }: Props) {
   const { data } = useApp();
   const firma = data.firma;
   const analyse = lead.analyse;
 
-  const [recipientEmail, setRecipientEmail] = useState(() => (lead.email || '').trim());
+  const [recipientEmail, setRecipientEmail] = useState(() =>
+    (lead.email || lead.analyse?.kontaktEmail || '').trim()
+  );
+  const [impressumStatus, setImpressumStatus] = useState<'idle' | 'suche' | 'gefunden' | 'nichts'>('idle');
 
   const [vars, setVars] = useState<EmailVars>(() =>
     buildInitialEmailVars(lead, firma.terminUrl || '', emailMode)
@@ -63,6 +68,42 @@ export default function EmailModal({ lead, emailMode, onClose, onEmailSent }: Pr
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, [onClose]);
+
+  useEffect(() => {
+    const vorhanden = (lead.email || lead.analyse?.kontaktEmail || recipientEmail).trim();
+    if (vorhanden.includes('@')) return;
+    const website = (lead.website || '').trim();
+    if (!website) {
+      setImpressumStatus('nichts');
+      return;
+    }
+    let stop = false;
+    setImpressumStatus('suche');
+    (async () => {
+      try {
+        const res = await fetch('/api/analyse', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ website, name: lead.name, nurKontakt: true }),
+        });
+        const parsed = await readApiJson<{ kontaktEmail?: string; error?: string }>(res);
+        if (stop) return;
+        const email = typeof parsed.data?.kontaktEmail === 'string' ? parsed.data.kontaktEmail.trim() : '';
+        if (email.includes('@')) {
+          setRecipientEmail(email);
+          setImpressumStatus('gefunden');
+          await onKontaktGefunden?.(lead.id, email);
+        } else {
+          setImpressumStatus('nichts');
+        }
+      } catch {
+        if (!stop) setImpressumStatus('nichts');
+      }
+    })();
+    return () => { stop = true; };
+    // Nur einmal beim Öffnen: Website/Lead sind pro Modal-Instanz (key am Parent) fest.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lead.id, lead.website]);
 
   const set = (k: keyof EmailVars, v: string) => setVars(p => ({ ...p, [k]: v }));
   const setOpt = (idx: 0 | 1 | 2, v: string) =>
@@ -157,6 +198,17 @@ export default function EmailModal({ lead, emailMode, onClose, onEmailSent }: Pr
 
   const inputCls = 'w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none';
   const isStandard = vars.templateKind === 'standard';
+  const isSeo = vars.templateKind === 'seo';
+  const isSoftware = vars.templateKind === 'software';
+  const isPunkteVorlage = !isStandard;
+
+  const vorlagenLabel = isStandard
+    ? 'Vorlage: Standard-Ansprache (ohne KI)'
+    : isSeo
+      ? 'Vorlage: SEO-Kurzcheck (3 Punkte)'
+      : isSoftware
+        ? 'Vorlage: Drei WebApps (Zeiterfassung, Rechnung, Posteingang)'
+        : 'Vorlage: Website-Analyse (3 Punkte)';
 
   return (
     <div className="fixed inset-0 z-50 flex bg-black/70 backdrop-blur-sm" onClick={onClose}>
@@ -169,7 +221,7 @@ export default function EmailModal({ lead, emailMode, onClose, onEmailSent }: Pr
             <h2 className="text-base font-semibold text-gray-100">E-Mail erstellen</h2>
             <p className="text-xs text-gray-500 mt-0.5 break-words">{lead.name} · {lead.website || '—'}</p>
             <p className="text-xs text-primary-400/90 mt-1">
-              {isStandard ? 'Vorlage: Standard-Ansprache (ohne KI)' : 'Vorlage: Kurzanalyse (3 Punkte)'}
+              {vorlagenLabel}
             </p>
             {lead.akquiseEmailZuletztVersendetAm && (
               <p className="text-xs text-emerald-400/90 mt-1.5 flex items-start gap-1.5">
@@ -222,7 +274,10 @@ export default function EmailModal({ lead, emailMode, onClose, onEmailSent }: Pr
                   autoComplete="email"
                 />
                 <p className="text-[11px] text-gray-600 leading-snug">
-                  Für Resend und Mail-App. Aus dem Lead vorausgefüllt, falls vorhanden.
+                  {impressumStatus === 'suche' && 'Lese Kontakt-E-Mail aus dem Impressum (Browserbase)…'}
+                  {impressumStatus === 'gefunden' && 'Aus dem Impressum übernommen.'}
+                  {impressumStatus === 'nichts' && 'Im Impressum keine Adresse gefunden — bitte manuell eintragen.'}
+                  {impressumStatus === 'idle' && 'Für Resend und Mail-App. Aus Lead oder Impressum vorausgefüllt.'}
                 </p>
               </div>
 
@@ -247,7 +302,11 @@ export default function EmailModal({ lead, emailMode, onClose, onEmailSent }: Pr
                 </div>
                 <div className="space-y-1 mt-3">
                   <label className="block text-xs text-gray-500">
-                    {isStandard ? 'Link im Button (Kontakt)' : 'Termin-Link (CTA)'}
+                    {isStandard
+                      ? 'Link im Button (Kontakt)'
+                      : isSoftware
+                        ? 'Link im Button (Software-Seite)'
+                        : 'Termin-Link (CTA)'}
                   </label>
                   <input className={inputCls} value={vars.ctaUrl} onChange={e => set('ctaUrl', e.target.value)} placeholder="https://…" />
                 </div>
@@ -270,22 +329,34 @@ export default function EmailModal({ lead, emailMode, onClose, onEmailSent }: Pr
               ) : (
                 <div className="border-t border-dark-700 pt-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs text-gray-500 uppercase tracking-wider">3 Optimierungen</p>
-                    {analyse && (
+                    <p className="text-xs text-gray-500 uppercase tracking-wider">
+                      {isSeo ? '3 SEO-Empfehlungen' : isSoftware ? '3 Programme' : '3 Optimierungen'}
+                    </p>
+                    {analyse && !isSoftware && (
                       <span className="text-xs text-emerald-400 flex items-center gap-1">
                         <RefreshCw size={10} /> KI
                       </span>
                     )}
                   </div>
-                  {([0, 1, 2] as const).map(idx => (
+                  {isPunkteVorlage && ([0, 1, 2] as const).map(idx => (
                     <div key={idx} className="space-y-1">
-                      <label className="block text-xs text-gray-500">Punkt {idx + 1}</label>
+                      <label className="block text-xs text-gray-500">
+                        {isSoftware
+                          ? (['Zeiterfassung', 'Auftrag & Rechnung', 'KI-Posteingang'] as const)[idx]
+                          : `Punkt ${idx + 1}`}
+                      </label>
                       <textarea
-                        rows={3}
+                        rows={isSoftware ? 5 : 3}
                         className={inputCls}
                         value={vars.optimierungen[idx]}
                         onChange={e => setOpt(idx, e.target.value)}
-                        placeholder={`Optimierung ${idx + 1}…`}
+                        placeholder={
+                          isSeo
+                            ? `SEO-Empfehlung ${idx + 1}…`
+                            : isSoftware
+                              ? `Programm ${idx + 1}…`
+                              : `Optimierung ${idx + 1}…`
+                        }
                       />
                     </div>
                   ))}

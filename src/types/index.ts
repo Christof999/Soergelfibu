@@ -175,7 +175,11 @@ export interface OptimierungPunkt {
 export interface LeadAnalyse {
   /** KI liefert strukturierte Punkte; ältere Daten können reine Strings sein */
   optimierungen: (string | OptimierungPunkt)[];
+  /** Kurzer, belegbarer SEO-Check (Erstkontakt, bis zu 3 Punkte) – optional, ältere Daten haben das nicht */
+  seoOptimierungen?: (string | OptimierungPunkt)[];
   ansprechpartner: string;
+  /** Aus Impressum/Website automatisch extrahierte Kontakt-E-Mail (falls gefunden) */
+  kontaktEmail?: string;
   zusammenfassung: string;
   websiteGeladen: boolean;
   analysiertAm: string;
