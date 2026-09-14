@@ -1,21 +1,21 @@
 import type { Lead, OptimierungPunkt } from '../types';
 import { normalizeOptimierungenListe } from './leadAnalyse';
 
-export type AkquiseEmailTemplateKind = 'analyse' | 'standard';
+export type AkquiseEmailTemplateKind = 'analyse' | 'seo' | 'standard';
 
 export interface EmailVars {
   customerName: string;
   companyName: string;
   websiteUrl: string;
   ctaUrl: string;
-  /** „analyse“ = drei KI-Punkte; „standard“ = eine Ansprache ohne Website-Analyse */
+  /** „analyse“ = Website-Optimierungen; „seo“ = SEO-Kurzcheck; „standard“ = Ansprache ohne KI */
   templateKind: AkquiseEmailTemplateKind;
   /** Nur bei templateKind „standard“: Fließtext zu Leistungen & Zusammenarbeit (Absätze mit Leerzeile) */
   standardLeistungstext?: string;
-  /** Exakt 3 Optimierungen aus der KI-Analyse oder Fallback-Texte (nur „analyse“) — Bearbeitung im Modal */
+  /** Exakt 3 Punkte aus der KI-Analyse oder Fallback-Texte („analyse“ / „seo“) — Bearbeitung im Modal */
   optimierungen: [string, string, string];
   /**
-   * Nur „analyse“: strukturierte KI-Punkte für HTML/Klartext.
+   * Nur „analyse“ / „seo“: strukturierte KI-Punkte für HTML/Klartext.
    * Wenn gesetzt, werden Titel und Empfehlung direkt verwendet (ohne splitOpt-Zerlegung der Rohstrings).
    */
   optimierungPunkte?: [OptimierungPunkt, OptimierungPunkt, OptimierungPunkt];
@@ -27,6 +27,12 @@ const FALLBACK_OPT: [string, string, string] = [
   'Mobile wirkt nicht wie ein gepflegter Auftritt. Über 60 % Ihrer Besucher kommen vom Smartphone — dort zählt jede Sekunde.',
   'Google findet Sie für die wichtigen Begriffe nicht. Titel, Meta-Daten und Struktur sagen zu wenig über Ihr Angebot.',
   'Das Erscheinungsbild passt nicht mehr zur Qualität Ihrer Arbeit. Besucher entscheiden in 0,05 Sekunden, ob ein Unternehmen seriös wirkt.',
+];
+
+const FALLBACK_SEO_OPT: [string, string, string] = [
+  'Seitentitel und Meta-Beschreibung sagen zu wenig aus. Google nutzt beides als erstes Signal — Besucher und Suchmaschine wissen nicht, was Sie genau anbieten.',
+  'Die Überschriftenstruktur ist unklar. Eine eindeutige H1 und sinnvolle Zwischenüberschriften helfen Google, Ihr Angebot zuzuordnen.',
+  'Lokale Signale und Vertrauen fehlen. Konsistenter Name, Adresse, Telefon und Impressum stärken Auffindbarkeit und E-E-A-T.',
 ];
 
 /** CTA für Standard-Ansprache */
@@ -98,6 +104,11 @@ export function buildSubjectStandard(lead: { name: string; website: string }): s
   return `Kurze Vorstellung — Digital & Branding für ${domain || lead.name}`;
 }
 
+export function buildSubjectSeo(lead: { name: string; website: string }): string {
+  const domain = lead.website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0];
+  return `SEO-Kurzcheck ${domain || lead.name} — 3 Punkte für Google`;
+}
+
 /** Startwerte für das E-Mail-Modal (Analyse oder Standard) */
 export function buildInitialEmailVars(
   lead: Lead,
@@ -120,7 +131,9 @@ export function buildInitialEmailVars(
     };
   }
 
-  const drei = normalizeOptimierungenListe(analyse?.optimierungen);
+  const isSeo = mode === 'seo';
+  const rohPunkte = isSeo ? analyse?.seoOptimierungen : analyse?.optimierungen;
+  const drei = normalizeOptimierungenListe(rohPunkte);
   const optsFromKi: [string, string, string] = drei.map(p => {
     const t = String(p.titel ?? '').trim();
     const e = String(p.empfehlung ?? '').trim();
@@ -131,29 +144,33 @@ export function buildInitialEmailVars(
   }) as [string, string, string];
 
   const hatKiText = optsFromKi.some(s => String(s ?? '').trim().length > 0);
+  const fallback = isSeo ? FALLBACK_SEO_OPT : FALLBACK_OPT;
 
   return {
     customerName: analyse?.ansprechpartner || 'Guten Tag',
     companyName: lead.name,
     websiteUrl,
     ctaUrl: terminUrl || DEFAULT_AKQUISE_KONTAKT_URL,
-    templateKind: 'analyse',
+    templateKind: mode,
     optimierungPunkte: hatKiText ? drei : undefined,
-    optimierungen: hatKiText ? optsFromKi : [...FALLBACK_OPT],
-    subject: buildSubject(lead),
+    optimierungen: hatKiText ? optsFromKi : [...fallback],
+    subject: isSeo ? buildSubjectSeo(lead) : buildSubject(lead),
   };
 }
 
 export function buildEmailHtml(vars: EmailVars): string {
   const isStandard = vars.templateKind === 'standard';
+  const isSeo = vars.templateKind === 'seo';
+  const isPunkteVorlage = !isStandard;
   const leistungRaw = (vars.standardLeistungstext ?? DEFAULT_STANDARD_AKQUISE_LEISTUNGSTEXT).trim();
 
+  const fallback = isSeo ? FALLBACK_SEO_OPT : FALLBACK_OPT;
   const opts = vars.optimierungen.length === 3
     ? vars.optimierungen
-    : FALLBACK_OPT;
+    : fallback;
 
   const parsed =
-    vars.templateKind === 'analyse' && vars.optimierungPunkte
+    isPunkteVorlage && vars.optimierungPunkte
       ? (vars.optimierungPunkte.map((p, i) => ({
           title: String(p.titel ?? '').trim() || `Empfehlung ${i + 1}`,
           body: String(p.empfehlung ?? '').trim(),
@@ -171,22 +188,32 @@ export function buildEmailHtml(vars: EmailVars): string {
   const preheader = vars.preheader
     ?? (isStandard
       ? `Digitale Lösungen, WebApps, Media & Print — gern gemeinsam mit ${vars.companyName}.`
-      : `3 konkrete Punkte auf ${vars.websiteUrl}, die Sie heute Kunden kosten — 15 Min. Gespräch, kostenlos.`);
+      : isSeo
+        ? `3 SEO-Punkte für ${vars.websiteUrl} — wie Google Sie findet. 15 Min. Gespräch, kostenlos.`
+        : `3 konkrete Punkte auf ${vars.websiteUrl}, die Sie heute Kunden kosten — 15 Min. Gespräch, kostenlos.`);
 
-  const headerBadge = isStandard ? 'Ansprache' : 'Kurzanalyse';
+  const headerBadge = isStandard ? 'Ansprache' : isSeo ? 'SEO-Kurzcheck' : 'Kurzanalyse';
   const kicker = isStandard
     ? `Kennenlernen · ${esc(vars.companyName)}`
-    : `Analyse · ${esc(vars.companyName)}`;
+    : isSeo
+      ? `SEO · ${esc(vars.companyName)}`
+      : `Analyse · ${esc(vars.companyName)}`;
   const h1 = isStandard
     ? `Digitale Lösungen & <span style="color:#8A8178;">Branding</span><br>— gemeinsam denken wir weiter.`
-    : `Ihre Website <span style="color:#8A8178;">verschenkt</span><br>gerade Kunden.`;
+    : isSeo
+      ? `Bei Google <span style="color:#8A8178;">verschenken</span><br>Sie Sichtbarkeit.`
+      : `Ihre Website <span style="color:#8A8178;">verschenkt</span><br>gerade Kunden.`;
 
   const hasWeb = !!vars.websiteUrl.trim();
   const intro = isStandard
     ? (hasWeb
       ? `Hallo ${esc(vars.customerName)},<br><br>ich schreibe Ihnen, weil ich auf ${esc(vars.companyName)} gestoßen bin und Ihre Präsenz unter <a href="https://${esc(vars.websiteUrl)}" style="color:#0A0A0A;text-decoration:underline;text-decoration-color:#C94A1C;text-underline-offset:3px;">${esc(vars.websiteUrl)}</a> gesehen habe. Gern stelle ich mich kurz vor und sage, wie ich Sie bei digitalen Themen und einem stimmigen Markenauftritt unterstützen kann:`
       : `Hallo ${esc(vars.customerName)},<br><br>ich schreibe Ihnen, weil ich auf ${esc(vars.companyName)} gestoßen bin. Gern stelle ich mich kurz vor und sage, wie ich Sie bei digitalen Themen und einem stimmigen Markenauftritt unterstützen kann:`)
-    : `Hallo ${esc(vars.customerName)},<br><br>ich habe mir <a href="https://${esc(vars.websiteUrl)}" style="color:#0A0A0A;text-decoration:underline;text-decoration-color:#C94A1C;text-underline-offset:3px;">${esc(vars.websiteUrl)}</a> angesehen. Drei Punkte kosten Sie messbar Anfragen — lassen sich in wenigen Wochen lösen.`;
+    : isSeo
+      ? `Hallo ${esc(vars.customerName)},<br><br>ich habe mir <a href="https://${esc(vars.websiteUrl)}" style="color:#0A0A0A;text-decoration:underline;text-decoration-color:#C94A1C;text-underline-offset:3px;">${esc(vars.websiteUrl)}</a> angesehen und einen kurzen SEO-Check gemacht. Drei Punkte bremsen Ihre Auffindbarkeit bei Google — oft lassen sie sich ohne großen Aufwand verbessern.`
+      : `Hallo ${esc(vars.customerName)},<br><br>ich habe mir <a href="https://${esc(vars.websiteUrl)}" style="color:#0A0A0A;text-decoration:underline;text-decoration-color:#C94A1C;text-underline-offset:3px;">${esc(vars.websiteUrl)}</a> angesehen. Drei Punkte kosten Sie messbar Anfragen — lassen sich in wenigen Wochen lösen.`;
+
+  const punkteSectionLabel = isSeo ? 'SEO-Kurzcheck' : 'Optimierungspotenziale';
 
   const mainBlock = isStandard
     ? `
@@ -199,6 +226,7 @@ export function buildEmailHtml(vars: EmailVars): string {
     : `
         <tr>
           <td style="background:#FFFFFF;padding:40px 48px 16px 48px;" class="px">
+            <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:0.18em;color:#8A8178;text-transform:uppercase;padding-bottom:20px;">${punkteSectionLabel}</div>
             ${opt(1, parsed[0].title, parsed[0].body)}
             ${opt(2, parsed[1].title, parsed[1].body)}
             ${opt(3, parsed[2].title, parsed[2].body)}
@@ -208,7 +236,9 @@ export function buildEmailHtml(vars: EmailVars): string {
   const accentTitle = isStandard ? 'Nächster Schritt' : 'Mein Angebot';
   const accentBody = isStandard
     ? `Wenn das für Sie interessant klingt, freue ich mich über eine kurze Rückmeldung — am einfachsten über das <span style="color:#BFB8AE;">Kontaktformular</span> auf meiner Seite. Von dort aus vereinbaren wir gern ein unverbindliches Gespräch und schauen, <span style="color:#BFB8AE;">wie wir gemeinsam an Ihren digitalen Lösungen oder am Branding weiterarbeiten können.</span>`
-    : `15 Minuten am Telefon. Ich zeige Ihnen die drei Punkte konkret an Ihrer Seite — <span style="color:#BFB8AE;">kein Verkaufsgespräch, kein Haken.</span>`;
+    : isSeo
+      ? `15 Minuten am Telefon. Ich gehe die drei SEO-Punkte an Ihrer Seite durch — <span style="color:#BFB8AE;">kein Verkaufsgespräch, kein Haken.</span>`
+      : `15 Minuten am Telefon. Ich zeige Ihnen die drei Punkte konkret an Ihrer Seite — <span style="color:#BFB8AE;">kein Verkaufsgespräch, kein Haken.</span>`;
 
   const ctaHref = esc(vars.ctaUrl);
   const ctaLabel = isStandard ? 'Zum Kontaktformular' : 'Kostenloses 15-Min-Gespräch buchen&nbsp;&nbsp;→';
@@ -387,9 +417,10 @@ SØRGEL-design · www.soergel-design.de
 Sie erhalten diese Mail einmalig. Nicht mehr kontaktieren: hallo@soergel-design.de`;
   }
 
-  const opts = vars.optimierungen.length === 3 ? vars.optimierungen : FALLBACK_OPT;
+  const opts = vars.optimierungen.length === 3 ? vars.optimierungen : (vars.templateKind === 'seo' ? FALLBACK_SEO_OPT : FALLBACK_OPT);
+  const isSeo = vars.templateKind === 'seo';
 
-  if (vars.optimierungPunkte && vars.templateKind === 'analyse') {
+  if (vars.optimierungPunkte && (vars.templateKind === 'analyse' || vars.templateKind === 'seo')) {
     const blocks = vars.optimierungPunkte.map((p, i) => {
       const t = String(p.titel ?? '').trim();
       const e = String(p.empfehlung ?? '').trim();
@@ -397,13 +428,19 @@ Sie erhalten diese Mail einmalig. Nicht mehr kontaktieren: hallo@soergel-design.
       const num = String(i + 1).padStart(2, '0');
       return `${num} · ${head}${e ? `\n${e}` : ''}`;
     });
+    const einleitung = isSeo
+      ? `ich habe mir ${vars.websiteUrl} angesehen und einen kurzen SEO-Check gemacht. Drei Punkte bremsen Ihre Auffindbarkeit bei Google:`
+      : `ich habe mir ${vars.websiteUrl} angesehen. Drei Punkte kosten Sie messbar Anfragen:`;
+    const angebot = isSeo
+      ? 'Mein Angebot: 15 Minuten am Telefon. Ich gehe die drei SEO-Punkte an Ihrer Seite durch — kein Verkaufsgespräch, kein Haken.'
+      : 'Mein Angebot: 15 Minuten am Telefon. Ich zeige Ihnen die drei Punkte konkret an Ihrer Seite — kein Verkaufsgespräch, kein Haken.';
     return `Hallo ${vars.customerName},
 
-ich habe mir ${vars.websiteUrl} angesehen. Drei Punkte kosten Sie messbar Anfragen:
+${einleitung}
 
 ${blocks.join('\n\n')}
 
-Mein Angebot: 15 Minuten am Telefon. Ich zeige Ihnen die drei Punkte konkret an Ihrer Seite — kein Verkaufsgespräch, kein Haken.
+${angebot}
 
 Termin buchen: ${vars.ctaUrl}
 
@@ -415,9 +452,16 @@ SØRGEL-design · www.soergel-design.de
 Sie erhalten diese Mail einmalig. Nicht mehr kontaktieren: hallo@soergel-design.de`;
   }
 
+  const einleitung = isSeo
+    ? `ich habe mir ${vars.websiteUrl} angesehen und einen kurzen SEO-Check gemacht. Drei Punkte bremsen Ihre Auffindbarkeit bei Google:`
+    : `ich habe mir ${vars.websiteUrl} angesehen. Drei Punkte kosten Sie messbar Anfragen:`;
+  const angebot = isSeo
+    ? 'Mein Angebot: 15 Minuten am Telefon. Ich gehe die drei SEO-Punkte an Ihrer Seite durch — kein Verkaufsgespräch, kein Haken.'
+    : 'Mein Angebot: 15 Minuten am Telefon. Ich zeige Ihnen die drei Punkte konkret an Ihrer Seite — kein Verkaufsgespräch, kein Haken.';
+
   return `Hallo ${vars.customerName},
 
-ich habe mir ${vars.websiteUrl} angesehen. Drei Punkte kosten Sie messbar Anfragen:
+${einleitung}
 
 01 · ${opts[0]}
 
@@ -425,7 +469,7 @@ ich habe mir ${vars.websiteUrl} angesehen. Drei Punkte kosten Sie messbar Anfrag
 
 03 · ${opts[2]}
 
-Mein Angebot: 15 Minuten am Telefon. Ich zeige Ihnen die drei Punkte konkret an Ihrer Seite — kein Verkaufsgespräch, kein Haken.
+${angebot}
 
 Termin buchen: ${vars.ctaUrl}
 

@@ -14,7 +14,7 @@ import { readApiJson } from '../utils/readApiJson';
 
 interface Props {
   lead: Lead;
-  /** „analyse“ = drei KI-Punkte; „standard“ = Leistungs-Ansprache ohne KI */
+  /** „analyse“ = Website-Optimierungen; „seo“ = SEO-Kurzcheck; „standard“ = Leistungs-Ansprache ohne KI */
   emailMode: AkquiseEmailTemplateKind;
   onClose: () => void;
   /** Nach erfolgreichem Resend-Versand: Lead in Firebase aktualisieren (nur ★-Leads) */
@@ -34,7 +34,9 @@ export default function EmailModal({ lead, emailMode, onClose, onEmailSent }: Pr
   const firma = data.firma;
   const analyse = lead.analyse;
 
-  const [recipientEmail, setRecipientEmail] = useState(() => (lead.email || '').trim());
+  const [recipientEmail, setRecipientEmail] = useState(() =>
+    (lead.email || lead.analyse?.kontaktEmail || '').trim()
+  );
 
   const [vars, setVars] = useState<EmailVars>(() =>
     buildInitialEmailVars(lead, firma.terminUrl || '', emailMode)
@@ -157,6 +159,14 @@ export default function EmailModal({ lead, emailMode, onClose, onEmailSent }: Pr
 
   const inputCls = 'w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none';
   const isStandard = vars.templateKind === 'standard';
+  const isSeo = vars.templateKind === 'seo';
+  const isPunkteVorlage = !isStandard;
+
+  const vorlagenLabel = isStandard
+    ? 'Vorlage: Standard-Ansprache (ohne KI)'
+    : isSeo
+      ? 'Vorlage: SEO-Kurzcheck (3 Punkte)'
+      : 'Vorlage: Website-Analyse (3 Punkte)';
 
   return (
     <div className="fixed inset-0 z-50 flex bg-black/70 backdrop-blur-sm" onClick={onClose}>
@@ -169,7 +179,7 @@ export default function EmailModal({ lead, emailMode, onClose, onEmailSent }: Pr
             <h2 className="text-base font-semibold text-gray-100">E-Mail erstellen</h2>
             <p className="text-xs text-gray-500 mt-0.5 break-words">{lead.name} · {lead.website || '—'}</p>
             <p className="text-xs text-primary-400/90 mt-1">
-              {isStandard ? 'Vorlage: Standard-Ansprache (ohne KI)' : 'Vorlage: Kurzanalyse (3 Punkte)'}
+              {vorlagenLabel}
             </p>
             {lead.akquiseEmailZuletztVersendetAm && (
               <p className="text-xs text-emerald-400/90 mt-1.5 flex items-start gap-1.5">
@@ -222,7 +232,7 @@ export default function EmailModal({ lead, emailMode, onClose, onEmailSent }: Pr
                   autoComplete="email"
                 />
                 <p className="text-[11px] text-gray-600 leading-snug">
-                  Für Resend und Mail-App. Aus dem Lead vorausgefüllt, falls vorhanden.
+                  Für Resend und Mail-App. Aus dem Lead oder dem Impressum der Analyse vorausgefüllt.
                 </p>
               </div>
 
@@ -270,14 +280,16 @@ export default function EmailModal({ lead, emailMode, onClose, onEmailSent }: Pr
               ) : (
                 <div className="border-t border-dark-700 pt-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs text-gray-500 uppercase tracking-wider">3 Optimierungen</p>
+                    <p className="text-xs text-gray-500 uppercase tracking-wider">
+                      {isSeo ? '3 SEO-Empfehlungen' : '3 Optimierungen'}
+                    </p>
                     {analyse && (
                       <span className="text-xs text-emerald-400 flex items-center gap-1">
                         <RefreshCw size={10} /> KI
                       </span>
                     )}
                   </div>
-                  {([0, 1, 2] as const).map(idx => (
+                  {isPunkteVorlage && ([0, 1, 2] as const).map(idx => (
                     <div key={idx} className="space-y-1">
                       <label className="block text-xs text-gray-500">Punkt {idx + 1}</label>
                       <textarea
@@ -285,7 +297,7 @@ export default function EmailModal({ lead, emailMode, onClose, onEmailSent }: Pr
                         className={inputCls}
                         value={vars.optimierungen[idx]}
                         onChange={e => setOpt(idx, e.target.value)}
-                        placeholder={`Optimierung ${idx + 1}…`}
+                        placeholder={isSeo ? `SEO-Empfehlung ${idx + 1}…` : `Optimierung ${idx + 1}…`}
                       />
                     </div>
                   ))}
