@@ -108,6 +108,51 @@ export default function DokumentList({ typ }: Props) {
     });
   };
 
+  const aktionen = (doc: Dokument) => {
+    const hatRechnung = typ === 'angebot' && !!findRechnungAusAngebot(doc.id);
+    return (
+      <>
+        <button onClick={() => handlePDF(doc)} title="PDF" className="p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors">
+          <Download size={14} />
+        </button>
+        <button onClick={() => handleDuplicate(doc)} title="Duplizieren" className="p-1.5 rounded-lg text-gray-500 hover:text-violet-400 hover:bg-violet-900/30 transition-colors">
+          <Copy size={14} />
+        </button>
+        {typ === 'angebot' && (
+          <>
+            <button
+              type="button"
+              onClick={() => void handleRechnungAusAngebot(doc)}
+              title={hatRechnung ? 'Rechnung existiert bereits' : 'Rechnung aus Angebot'}
+              disabled={hatRechnung}
+              className={`p-1.5 rounded-lg transition-colors ${
+                hatRechnung
+                  ? 'text-gray-700 cursor-not-allowed'
+                  : 'text-gray-500 hover:text-amber-400 hover:bg-amber-900/30'
+              }`}
+            >
+              <ArrowRightCircle size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleProjektErstellen(doc)}
+              title="Projekt erstellen"
+              className="p-1.5 rounded-lg text-gray-500 hover:text-emerald-400 hover:bg-emerald-900/30 transition-colors"
+            >
+              <FolderPlus size={14} />
+            </button>
+          </>
+        )}
+        <button type="button" onClick={() => openEdit(doc)} title="Bearbeiten" className="p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors">
+          <Pencil size={14} />
+        </button>
+        <button type="button" onClick={() => setDeleteId(doc.id)} title="Löschen" className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors">
+          <Trash2 size={14} />
+        </button>
+      </>
+    );
+  };
+
   return (
     <div>
       <PageHeader
@@ -123,7 +168,7 @@ export default function DokumentList({ typ }: Props) {
         }
       />
 
-      <div className="p-8 space-y-4">
+      <div className="p-4 sm:p-8 space-y-4">
         <div className="relative">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input
@@ -145,7 +190,8 @@ export default function DokumentList({ typ }: Props) {
             )}
           </div>
         ) : (
-          <div className="bg-dark-800 rounded-2xl border border-dark-700 overflow-hidden">
+          <>
+          <div className="hidden md:block bg-dark-800 rounded-2xl border border-dark-700 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-dark-900/60 text-left border-b border-dark-700">
@@ -162,8 +208,6 @@ export default function DokumentList({ typ }: Props) {
                 {filtered.map(doc => {
                   const kunde = data.kunden.find(k => k.id === doc.kundeId);
                   const { brutto } = berechneGesamtsummen(doc.positionen, ku);
-                  const hatRechnung =
-                    typ === 'angebot' && !!findRechnungAusAngebot(doc.id);
                   return (
                     <tr key={doc.id} className="hover:bg-dark-700/50 transition-colors">
                       <td className="px-5 py-3 font-mono text-xs text-gray-400 font-medium">{doc.nummer}</td>
@@ -175,45 +219,7 @@ export default function DokumentList({ typ }: Props) {
                       <td className="px-5 py-3 text-right font-semibold text-gray-200">{fmtEur(brutto)}</td>
                       <td className="px-5 py-3"><StatusBadge status={doc.status} /></td>
                       <td className="px-5 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => handlePDF(doc)} title="PDF" className="p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors">
-                            <Download size={14} />
-                          </button>
-                          <button onClick={() => handleDuplicate(doc)} title="Duplizieren" className="p-1.5 rounded-lg text-gray-500 hover:text-violet-400 hover:bg-violet-900/30 transition-colors">
-                            <Copy size={14} />
-                          </button>
-                          {typ === 'angebot' && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => void handleRechnungAusAngebot(doc)}
-                                title={hatRechnung ? 'Rechnung existiert bereits' : 'Rechnung aus Angebot'}
-                                disabled={hatRechnung}
-                                className={`p-1.5 rounded-lg transition-colors ${
-                                  hatRechnung
-                                    ? 'text-gray-700 cursor-not-allowed'
-                                    : 'text-gray-500 hover:text-amber-400 hover:bg-amber-900/30'
-                                }`}
-                              >
-                                <ArrowRightCircle size={14} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => void handleProjektErstellen(doc)}
-                                title="Projekt erstellen"
-                                className="p-1.5 rounded-lg text-gray-500 hover:text-emerald-400 hover:bg-emerald-900/30 transition-colors"
-                              >
-                                <FolderPlus size={14} />
-                              </button>
-                            </>
-                          )}
-                          <button type="button" onClick={() => openEdit(doc)} className="p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors">
-                            <Pencil size={14} />
-                          </button>
-                          <button type="button" onClick={() => setDeleteId(doc.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors">
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
+                        <div className="flex items-center justify-end gap-1">{aktionen(doc)}</div>
                       </td>
                     </tr>
                   );
@@ -221,6 +227,34 @@ export default function DokumentList({ typ }: Props) {
               </tbody>
             </table>
           </div>
+
+          <ul className="md:hidden bg-dark-800 rounded-2xl border border-dark-700 divide-y divide-dark-700 overflow-hidden">
+            {filtered.map(doc => {
+              const kunde = data.kunden.find(k => k.id === doc.kundeId);
+              const { brutto } = berechneGesamtsummen(doc.positionen, ku);
+              return (
+                <li key={doc.id} className="p-4 space-y-2">
+                  <button type="button" onClick={() => openEdit(doc)} className="w-full text-left space-y-1">
+                    <div className="flex justify-between gap-2 items-start">
+                      <div className="min-w-0">
+                        <p className="font-medium text-gray-100 break-words">{kunde?.firma || '–'}</p>
+                        <p className="text-xs text-gray-500 font-mono mt-0.5">
+                          {doc.nummer} · {format(new Date(doc.datum), 'dd.MM.yyyy', { locale: de })}
+                        </p>
+                      </div>
+                      <p className="text-sm font-semibold text-gray-100 tabular-nums shrink-0">{fmtEur(brutto)}</p>
+                    </div>
+                    {doc.betreff && <p className="text-sm text-gray-400 break-words">{doc.betreff}</p>}
+                  </button>
+                  <div className="flex items-center justify-between gap-2">
+                    <StatusBadge status={doc.status} />
+                    <div className="flex items-center gap-1">{aktionen(doc)}</div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          </>
         )}
       </div>
 
