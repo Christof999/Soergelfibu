@@ -1,18 +1,50 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { fehlendeFirebaseKonfig } from '../firebase/config';
+
+/**
+ * Klartext zu den Firebase-Fehlercodes, die beim Anmelden tatsächlich
+ * auftreten. Ohne diese Zuordnung bleibt in Vercel-Previews nur ein
+ * nichtssagendes „Anmeldung fehlgeschlagen“ übrig.
+ */
+function erklaerung(code: string, herkunft: string): string {
+  switch (code) {
+    case 'auth/unauthorized-domain':
+      return `Die Domain ${herkunft} ist in Firebase nicht freigegeben. Firebase Console → Authentication → Settings → Authorized domains → Domain hinzufügen. Preview-Deployments von Vercel bekommen bei jedem Branch eine eigene Adresse.`;
+    case 'auth/invalid-api-key':
+    case 'auth/api-key-not-valid':
+      return 'Der Firebase-API-Key fehlt oder ist ungültig. In Vercel unter Settings → Environment Variables prüfen, ob die VITE_FIREBASE_*-Werte auch für „Preview“ gesetzt sind — danach neu deployen.';
+    case 'auth/operation-not-allowed':
+      return 'Google-Anmeldung ist im Firebase-Projekt nicht aktiviert. Firebase Console → Authentication → Sign-in method → Google aktivieren.';
+    case 'auth/popup-blocked':
+      return 'Der Browser hat das Anmeldefenster blockiert. Popups für diese Seite erlauben und erneut versuchen.';
+    case 'auth/popup-closed-by-user':
+    case 'auth/cancelled-popup-request':
+      return 'Das Anmeldefenster wurde geschlossen, bevor die Anmeldung fertig war.';
+    case 'auth/network-request-failed':
+      return 'Keine Verbindung zu Firebase. Netzwerk oder Blocker im Browser prüfen.';
+    default:
+      return 'Anmeldung fehlgeschlagen. Bitte versuche es erneut.';
+  }
+}
 
 export default function Login() {
   const { signInWithGoogle } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [code, setCode] = useState('');
 
   const handleLogin = async () => {
     setLoading(true);
     setError('');
+    setCode('');
     try {
       await signInWithGoogle();
     } catch (e) {
-      setError('Anmeldung fehlgeschlagen. Bitte versuche es erneut.');
+      const fehlerCode = (e as { code?: string })?.code ?? '';
+      const herkunft = typeof window !== 'undefined' ? window.location.hostname : 'diese Adresse';
+      setCode(fehlerCode);
+      setError(erklaerung(fehlerCode, herkunft));
       console.error(e);
     } finally {
       setLoading(false);
@@ -34,9 +66,20 @@ export default function Login() {
           Melde dich mit deinem Google-Konto an, um auf deine Daten zuzugreifen – von jedem Gerät aus.
         </p>
 
+        {fehlendeFirebaseKonfig.length > 0 && (
+          <div className="mb-4 px-4 py-3 bg-amber-900/40 border border-amber-700 rounded-lg text-sm text-amber-200">
+            <p className="font-semibold mb-1">Firebase ist nicht konfiguriert</p>
+            <p className="text-xs text-amber-300/90">
+              Diese Variablen fehlen im Build: {fehlendeFirebaseKonfig.join(', ')}. In Vercel unter
+              Settings → Environment Variables für die passende Umgebung setzen und neu deployen.
+            </p>
+          </div>
+        )}
+
         {error && (
           <div className="mb-4 px-4 py-3 bg-red-900/40 border border-red-700 rounded-lg text-sm text-red-300">
-            {error}
+            <p>{error}</p>
+            {code && <p className="mt-1.5 text-xs text-red-400/80 font-mono break-all">{code}</p>}
           </div>
         )}
 

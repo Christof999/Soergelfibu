@@ -15,7 +15,7 @@ import Fibu from './pages/Fibu';
 import ServiceVertraege from './pages/ServiceVertraege';
 
 function ProtectedRoutes() {
-  const { user, loading } = useAuth();
+  const { user, loading, rolle } = useAuth();
 
   if (loading) {
     return (
@@ -32,6 +32,22 @@ function ProtectedRoutes() {
   }
 
   if (!user) return <Navigate to="/login" replace />;
+
+  // Akquise-Zugang: ausschließlich das Akquise-Tool. Die Oberfläche spiegelt
+  // hier nur, was firestore.rules ohnehin erzwingt.
+  if (rolle === 'akquise') {
+    return (
+      <AppProvider>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Navigate to="/akquise" replace />} />
+            <Route path="akquise" element={<Akquise />} />
+            <Route path="*" element={<Navigate to="/akquise" replace />} />
+          </Route>
+        </Routes>
+      </AppProvider>
+    );
+  }
 
   return (
     <AppProvider>

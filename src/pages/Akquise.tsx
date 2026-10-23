@@ -2,20 +2,45 @@ import { useState } from 'react';
 import {
   Search, Star, Globe, Phone, Mail, MapPin, Loader2,
   Sparkles, ChevronDown, ChevronUp, ExternalLink, Trash2,
-  TrendingUp, Users, FileText, Send,
+  TrendingUp, Users, FileText, Send, Gauge, Layers,
 } from 'lucide-react';
 import EmailModal from '../components/EmailModal';
 import PageHeader from '../components/PageHeader';
 import { useApp } from '../context/AppContext';
 import { Lead, LeadAnalyse } from '../types';
 import type { AkquiseEmailTemplateKind } from '../utils/emailTemplate';
-import { normalizeOptimierungenFromApi, normalizeOptimierungenListe, sanitizeAnalyseZusammenfassungDisplay } from '../utils/leadAnalyse';
+import { normalizeOptimierungenFromApi, normalizeOptimierungenListe, parseOptimierungPunkt, sanitizeAnalyseZusammenfassungDisplay } from '../utils/leadAnalyse';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { readApiJson } from '../utils/readApiJson';
 
 // ─── Hilfsfunktionen ─────────────────────────────────────────────────────────
+
+function sichtbareKontaktEmail(lead: Lead): string {
+  return (lead.email || lead.analyse?.kontaktEmail || '').trim();
+}
+
+function leadFuerEmail(lead: Lead, stored: Lead[] | undefined): Lead {
+  const fromStore = (stored ?? []).find(l => l.id === lead.id);
+  if (!fromStore) {
+    const email = sichtbareKontaktEmail(lead);
+    return email && email !== lead.email ? { ...lead, email } : lead;
+  }
+  const email = sichtbareKontaktEmail(lead) || sichtbareKontaktEmail(fromStore);
+  return {
+    ...fromStore,
+    ...lead,
+    email,
+    analyse: lead.analyse ?? fromStore.analyse,
+  };
+}
+
+function hatSeoOptimierungen(lead: Lead): boolean {
+  const seo = lead.analyse?.seoOptimierungen;
+  if (!seo?.length) return false;
+  return normalizeOptimierungenListe(seo).some(p => p.titel || p.empfehlung);
+}
 
 function Sterne({ n, max = 5 }: { n: number; max?: number }) {
   return (
@@ -41,7 +66,9 @@ function LeadKarte({
   onDelete,
   analysierend,
   onEmailAnalyse,
+  onEmailSeo,
   onEmailStandard,
+  onEmailSoftware,
 }: {
   lead: Lead;
   onStern: () => void;
@@ -49,9 +76,12 @@ function LeadKarte({
   onDelete?: () => void;
   analysierend: boolean;
   onEmailAnalyse?: () => void;
+  onEmailSeo?: () => void;
   onEmailStandard?: () => void;
+  onEmailSoftware?: () => void;
 }) {
   const [offen, setOffen] = useState(false);
+  const anzeigeEmail = sichtbareKontaktEmail(lead);
 
   return (
     <div className={`bg-dark-800 border rounded-2xl overflow-hidden transition-all ${
@@ -77,7 +107,14 @@ function LeadKarte({
                   </a>
                 </p>
               )}
-              {lead.email && <p className="flex items-center gap-1.5"><Mail size={10} /><a href={`mailto:${lead.email}`} className="hover:text-primary-400">{lead.email}</a></p>}
+              {anzeigeEmail && (
+                <p className="flex items-center gap-1.5">
+                  <Mail size={10} />
+                  <a href={`mailto:${anzeigeEmail}`} className="hover:text-primary-400">
+                    {anzeigeEmail}
+                  </a>
+                </p>
+              )}
               {lead.akquiseEmailZuletztVersendetAm && (
                 <p className="flex items-center gap-1.5 text-emerald-400/90 mt-1">
                   <Send size={10} className="shrink-0" />
@@ -147,15 +184,37 @@ function LeadKarte({
                 Standard-E-Mail
               </button>
             )}
+            {onEmailSoftware && (
+              <button
+                type="button"
+                onClick={onEmailSoftware}
+                className="flex flex-1 min-h-[44px] sm:flex-initial items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-medium bg-sky-900/25 text-sky-200 border border-sky-800/40 rounded-xl hover:bg-sky-900/40 transition-colors"
+                title="E-Mail zu den drei WebApps (Zeiterfassung, Rechnung, Posteingang)"
+              >
+                <Layers size={11} />
+                E-Mail (Software)
+              </button>
+            )}
             {onEmailAnalyse && lead.analyse && (
               <button
                 type="button"
                 onClick={onEmailAnalyse}
                 className="flex flex-1 min-h-[44px] sm:flex-initial items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-medium bg-primary-700/30 text-primary-200 border border-primary-600/40 rounded-xl hover:bg-primary-700/45 transition-colors"
-                title="E-Mail mit den drei Analyse-Punkten"
+                title="E-Mail mit den drei Website-Optimierungen"
               >
-                <Mail size={11} />
-                E-Mail (Analyse)
+                <TrendingUp size={11} />
+                E-Mail (Website)
+              </button>
+            )}
+            {onEmailSeo && lead.analyse && hatSeoOptimierungen(lead) && (
+              <button
+                type="button"
+                onClick={onEmailSeo}
+                className="flex flex-1 min-h-[44px] sm:flex-initial items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-medium bg-emerald-900/30 text-emerald-200 border border-emerald-700/40 rounded-xl hover:bg-emerald-900/45 transition-colors"
+                title="E-Mail mit den drei SEO-Empfehlungen"
+              >
+                <Gauge size={11} />
+                E-Mail (SEO)
               </button>
             )}
           </div>
@@ -192,6 +251,34 @@ function LeadKarte({
                     </li>
                   ))}
                 </ul>
+              </div>
+            )}
+            {lead.analyse.seoOptimierungen && lead.analyse.seoOptimierungen.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-gray-400 mb-1.5 flex items-center gap-1.5">
+                  <Gauge size={11} /> SEO-Kurzcheck
+                </p>
+                <ul className="space-y-2">
+                  {lead.analyse.seoOptimierungen
+                    .map((it, i) => parseOptimierungPunkt(it, i))
+                    .filter(p => p.titel || p.empfehlung)
+                    .map((punkt, i) => (
+                      <li key={i} className="flex items-start gap-2 text-xs text-gray-300">
+                        <span className="shrink-0 w-4 h-4 rounded-full bg-emerald-700/40 text-emerald-300 flex items-center justify-center text-xs font-bold mt-0.5">{i + 1}</span>
+                        <span className="min-w-0">
+                          {punkt.titel && (
+                            <span className="font-semibold text-gray-100 block">{punkt.titel}</span>
+                          )}
+                          {punkt.empfehlung && (
+                            <span className="text-gray-400 block mt-0.5">{punkt.empfehlung}</span>
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                </ul>
+                <p className="text-[11px] text-gray-600 mt-1.5">
+                  Kompakter Erstkontakt-Check, an Googles Primärquellen orientiert.
+                </p>
               </div>
             )}
             {lead.analyse.websiteGeladen === false && (
@@ -279,6 +366,23 @@ export default function Akquise() {
     await deleteLead(lead.id);
   };
 
+  const handleKontaktAusImpressum = async (leadId: string, email: string) => {
+    const trimmed = email.trim();
+    if (!trimmed.includes('@')) return;
+    setSuchergebnisse(prev =>
+      prev.map(l => (l.id === leadId ? { ...l, email: l.email?.trim() || trimmed } : l))
+    );
+    setEmailModal(prev =>
+      prev && prev.lead.id === leadId
+        ? { ...prev, lead: { ...prev.lead, email: prev.lead.email?.trim() || trimmed } }
+        : prev
+    );
+    const inFirestore = (data.leads ?? []).find(l => l.id === leadId);
+    if (inFirestore && !inFirestore.email?.trim()) {
+      await upsertLead({ ...inFirestore, email: trimmed });
+    }
+  };
+
   const handleAkquiseEmailGesendet = async (leadId: string, versendetAmIso: string) => {
     const inFirestore = (data.leads ?? []).find(l => l.id === leadId);
     if (inFirestore) {
@@ -310,14 +414,19 @@ export default function Akquise() {
       }
       const body = parsed.data!;
       if (!res.ok) throw new Error(body.error ?? 'Analyse fehlgeschlagen');
+      const kontaktEmail = typeof body.kontaktEmail === 'string' ? body.kontaktEmail.trim() : '';
       const analyse: LeadAnalyse = {
         optimierungen: normalizeOptimierungenFromApi(body.optimierungen),
+        seoOptimierungen: normalizeOptimierungenFromApi(body.seoOptimierungen),
         ansprechpartner: typeof body.ansprechpartner === 'string' ? body.ansprechpartner : '',
+        kontaktEmail,
         zusammenfassung: typeof body.zusammenfassung === 'string' ? body.zusammenfassung : '',
         websiteGeladen: typeof body.websiteGeladen === 'boolean' ? body.websiteGeladen : false,
         analysiertAm: typeof body.analysiertAm === 'string' ? body.analysiertAm : new Date().toISOString(),
       };
-      const updated = { ...lead, analyse };
+      // Gefundene Kontakt-E-Mail übernehmen, wenn der Lead noch keine hat (für E-Mail-Versand vorausgefüllt)
+      const email = lead.email?.trim() ? lead.email : kontaktEmail;
+      const updated = { ...lead, email, analyse };
       setSuchergebnisse(prev => prev.map(l => l.id === lead.id ? updated : l));
       if (isFromPotentiell || lead.stern) await upsertLead(updated);
     } catch (err) {
@@ -430,12 +539,16 @@ export default function Akquise() {
                       onAnalyse={() => analysieren(lead)}
                       analysierend={!!analysierend[lead.id]}
                       onEmailStandard={() => {
-                        const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
-                        setEmailModal({ lead: live, mode: 'standard' });
+                        setEmailModal({ lead: leadFuerEmail(lead, data.leads), mode: 'standard' });
+                      }}
+                      onEmailSoftware={() => {
+                        setEmailModal({ lead: leadFuerEmail(lead, data.leads), mode: 'software' });
                       }}
                       onEmailAnalyse={() => {
-                        const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
-                        setEmailModal({ lead: live, mode: 'analyse' });
+                        setEmailModal({ lead: leadFuerEmail(lead, data.leads), mode: 'analyse' });
+                      }}
+                      onEmailSeo={() => {
+                        setEmailModal({ lead: leadFuerEmail(lead, data.leads), mode: 'seo' });
                       }}
                     />
                   ))}
@@ -474,36 +587,59 @@ export default function Akquise() {
                         onDelete={() => deleteLead(lead.id)}
                         analysierend={!!analysierend[lead.id]}
                         onEmailStandard={() => {
-                          const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
-                          setEmailModal({ lead: live, mode: 'standard' });
+                          setEmailModal({ lead: leadFuerEmail(lead, data.leads), mode: 'standard' });
+                        }}
+                        onEmailSoftware={() => {
+                          setEmailModal({ lead: leadFuerEmail(lead, data.leads), mode: 'software' });
                         }}
                         onEmailAnalyse={() => {
-                          const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
-                          setEmailModal({ lead: live, mode: 'analyse' });
+                          setEmailModal({ lead: leadFuerEmail(lead, data.leads), mode: 'analyse' });
+                        }}
+                        onEmailSeo={() => {
+                          setEmailModal({ lead: leadFuerEmail(lead, data.leads), mode: 'seo' });
                         }}
                       />
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         <button
                           type="button"
                           onClick={() => {
-                            const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
-                            setEmailModal({ lead: live, mode: 'analyse' });
+                            setEmailModal({ lead: leadFuerEmail(lead, data.leads), mode: 'analyse' });
                           }}
                           disabled={!lead.analyse}
                           className="flex items-center justify-center gap-2 px-4 py-3 min-h-[48px] w-full text-sm font-medium bg-primary-600/20 border border-primary-700/50 text-primary-200 rounded-xl hover:bg-primary-600/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                          title={!lead.analyse ? 'Zuerst KI-Analyse ausführen' : ''}
+                          title={!lead.analyse ? 'Zuerst KI-Analyse ausführen' : 'E-Mail mit Website-Optimierungen'}
                         >
-                          <Sparkles size={14} /> Mit Analyse
+                          <TrendingUp size={14} /> Website
                         </button>
                         <button
                           type="button"
                           onClick={() => {
-                            const live = (data.leads ?? []).find(l => l.id === lead.id) ?? lead;
-                            setEmailModal({ lead: live, mode: 'standard' });
+                            setEmailModal({ lead: leadFuerEmail(lead, data.leads), mode: 'seo' });
+                          }}
+                          disabled={!hatSeoOptimierungen(lead)}
+                          className="flex items-center justify-center gap-2 px-4 py-3 min-h-[48px] w-full text-sm font-medium bg-emerald-900/25 border border-emerald-800/50 text-emerald-200 rounded-xl hover:bg-emerald-900/35 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          title={!hatSeoOptimierungen(lead) ? 'Zuerst KI-Analyse mit SEO-Daten ausführen' : 'E-Mail mit SEO-Empfehlungen'}
+                        >
+                          <Gauge size={14} /> SEO
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEmailModal({ lead: leadFuerEmail(lead, data.leads), mode: 'standard' });
                           }}
                           className="flex items-center justify-center gap-2 px-4 py-3 min-h-[48px] w-full text-sm font-medium bg-dark-800 border border-dark-700 text-gray-300 rounded-xl hover:bg-dark-700 hover:text-gray-100 transition-colors"
                         >
                           <FileText size={14} /> Standard
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEmailModal({ lead: leadFuerEmail(lead, data.leads), mode: 'software' });
+                          }}
+                          className="flex items-center justify-center gap-2 px-4 py-3 min-h-[48px] w-full text-sm font-medium bg-sky-900/25 border border-sky-800/40 text-sky-200 rounded-xl hover:bg-sky-900/40 transition-colors"
+                          title="E-Mail zu den drei WebApps"
+                        >
+                          <Layers size={14} /> Software
                         </button>
                       </div>
                     </div>
@@ -521,6 +657,7 @@ export default function Akquise() {
           emailMode={emailModal.mode}
           onClose={() => setEmailModal(null)}
           onEmailSent={handleAkquiseEmailGesendet}
+          onKontaktGefunden={handleKontaktAusImpressum}
         />
       )}
     </div>

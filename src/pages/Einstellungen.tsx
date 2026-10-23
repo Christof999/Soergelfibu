@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { Save, Download, Upload } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
+import ZugaengeVerwaltung from '../components/ZugaengeVerwaltung';
 import { useApp } from '../context/AppContext';
 import { Firma, AppData } from '../types';
 
@@ -170,6 +171,10 @@ export default function Einstellungen() {
             </div>
           </div>
         </form>
+
+        <div className="mt-6">
+          <ZugaengeVerwaltung />
+        </div>
 
         <div className="mt-6 bg-emerald-900/30 border border-emerald-800 rounded-2xl p-5">
           <h3 className="text-sm font-semibold text-emerald-400 mb-1">Cloud-Synchronisation aktiv</h3>

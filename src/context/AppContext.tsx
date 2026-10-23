@@ -1,13 +1,14 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   doc,
+  getDoc,
   setDoc,
   onSnapshot,
 } from 'firebase/firestore';
 import { db, storage } from '../firebase/config';
 import { ref, deleteObject } from 'firebase/storage';
 import { useAuth } from './AuthContext';
-import { AppData, Firma, Kunde, Artikel, Dokument, Projekt, ProjektZugang, ProjektKommunikation, KommunikationsAnhang, Lead, Eingangsrechnung, ServiceVertrag } from '../types';
+import { AkquiseData, AppData, Firma, Kunde, Artikel, Dokument, Projekt, ProjektZugang, ProjektKommunikation, KommunikationsAnhang, Lead, Eingangsrechnung, ServiceVertrag } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import { buildRechnungAusAngebot } from '../utils/rechnungAusAngebot';
 
@@ -46,6 +47,8 @@ const emptyData: AppData = {
   eingangsrechnungen: [],
   serviceVertraege: [],
 };
+
+const emptyAkquise: AkquiseData = { leads: [], terminUrl: '' };
 
 // ─── Firestore erlaubt keine undefined-Werte ──────────────────────────────────
 
@@ -123,20 +126,32 @@ const AppContext = createContext<AppContextValue | null>(null);
 // ─── Provider ────────────────────────────────────────────────────────────────
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
-  const [data, setData] = useState<AppData>(emptyData);
+  const { user, rolle, ownerUid } = useAuth();
+  /** Akquise-Mitglieder sehen ausschließlich das Akquise-Dokument. */
+  const nurAkquise = rolle === 'akquise';
+
+  const [haupt, setHaupt] = useState<AppData>(emptyData);
+  const [akquise, setAkquise] = useState<AkquiseData>(emptyAkquise);
   const [syncing, setSyncing] = useState(false);
+  /** Erst wenn die Leads aus ihrem eigenen Dokument geladen sind, darf das
+   *  Hauptdokument ohne das alte `leads`-Feld geschrieben werden. */
+  const akquiseGeladen = useRef(false);
 
-  const userDocRef = user ? doc(db, 'users', user.uid, 'data', 'main') : null;
+  const hauptDocRef = ownerUid && !nurAkquise ? doc(db, 'users', ownerUid, 'data', 'main') : null;
+  const akquiseDocRef = ownerUid ? doc(db, 'users', ownerUid, 'data', 'akquise') : null;
 
+  const hauptPfad = hauptDocRef?.path ?? null;
+  const akquisePfad = akquiseDocRef?.path ?? null;
+
+  // ── Hauptdokument (nur Inhaber) ───────────────────────────────────────────
   useEffect(() => {
-    if (!userDocRef) { setData(emptyData); return; }
+    if (!hauptPfad) { setHaupt(emptyData); return; }
     setSyncing(true);
-    const unsub = onSnapshot(userDocRef, (snap) => {
+    const unsub = onSnapshot(doc(db, hauptPfad), (snap) => {
       if (snap.exists()) {
         const d = snap.data() as AppData;
         const rawFirma = d.firma as Firma | undefined;
-        setData({
+        setHaupt({
           ...emptyData,
           ...d,
           firma: {
@@ -152,18 +167,88 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           serviceVertraege: d.serviceVertraege ?? [],
         });
       } else {
-        setDoc(userDocRef, sanitize(emptyData));
+        // Bewusst kein Anlegen auf Vorrat: ein leeres Hauptdokument würde beim
+        // Anmelden fälschlich als „eigener Arbeitsbereich in Benutzung“ gelten.
+        setHaupt(emptyData);
       }
       setSyncing(false);
     });
     return unsub;
-  }, [user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [hauptPfad]);
+
+  // ── Akquise-Dokument (Inhaber + freigeschaltete Mitglieder) ───────────────
+  useEffect(() => {
+    if (!akquisePfad) { setAkquise(emptyAkquise); akquiseGeladen.current = false; return; }
+    akquiseGeladen.current = false;
+    const unsub = onSnapshot(
+      doc(db, akquisePfad),
+      (snap) => {
+        const d = snap.exists() ? (snap.data() as Partial<AkquiseData>) : null;
+        setAkquise({
+          leads: d?.leads ?? [],
+          terminUrl: d?.terminUrl ?? '',
+        });
+        // Nur ein tatsächlich vorhandenes Dokument belegt, dass die Migration
+        // gelaufen ist. Sonst bleiben die Leads im Hauptdokument stehen.
+        akquiseGeladen.current = snap.exists();
+      },
+      () => {
+        // Zugriff (noch) nicht freigeschaltet — leere Liste statt Absturz.
+        setAkquise(emptyAkquise);
+      }
+    );
+    return unsub;
+  }, [akquisePfad]);
+
+  // ── Einmalige Migration: Leads aus dem Hauptdokument herauslösen ──────────
+  useEffect(() => {
+    if (!hauptPfad || !akquisePfad) return;
+    let abgebrochen = false;
+    (async () => {
+      const [h, a] = await Promise.all([getDoc(doc(db, hauptPfad)), getDoc(doc(db, akquisePfad))]);
+      if (abgebrochen || a.exists()) return;
+      // Auch ohne Hauptdokument anlegen: Mitglieder dürfen es nicht selbst
+      // erzeugen und stünden sonst vor einem gesperrten Zugriff.
+      const alt = h.exists() ? (h.data() as AppData) : null;
+      await setDoc(doc(db, akquisePfad), sanitize<AkquiseData>({
+        leads: alt?.leads ?? [],
+        terminUrl: alt?.firma?.terminUrl ?? '',
+      }));
+    })().catch((e) => console.error('Akquise-Migration fehlgeschlagen', e));
+    return () => { abgebrochen = true; };
+  }, [hauptPfad, akquisePfad]);
+
+  const data = useMemo<AppData>(() => ({
+    ...(nurAkquise ? emptyData : haupt),
+    firma: nurAkquise
+      ? { ...emptyData.firma, terminUrl: akquise.terminUrl }
+      : haupt.firma,
+    leads: akquise.leads,
+  }), [haupt, akquise, nurAkquise]);
+
+  /** Schreibzugriff auf alles außer Leads ist Mitgliedern verwehrt. */
+  const nurInhaber = () => {
+    if (nurAkquise) throw new Error('Für diesen Bereich fehlt die Berechtigung.');
+  };
 
   const persist = useCallback(async (updated: AppData) => {
-    if (!userDocRef) return;
-    setData(updated);
-    await setDoc(userDocRef, sanitize(updated));
-  }, [userDocRef]);
+    nurInhaber();
+    if (!hauptPfad) return;
+    setHaupt(updated);
+    // Leads leben im eigenen Dokument; bis zur ersten Antwort von dort bleibt
+    // die alte Kopie erhalten, damit nichts verloren geht.
+    await setDoc(doc(db, hauptPfad), sanitize({
+      ...updated,
+      leads: akquiseGeladen.current ? [] : updated.leads,
+    }));
+  }, [hauptPfad]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const persistAkquise = useCallback(async (leads: Lead[]) => {
+    if (!akquisePfad) return;
+    const next: AkquiseData = { ...akquise, leads };
+    setAkquise(next);
+    await setDoc(doc(db, akquisePfad), sanitize(next));
+  }, [akquisePfad, akquise]);
 
   /** Ein Dokument anhängen inkl. Nummernkreis (reiner Datenfluss, kein React-State). */
   const appendDokument = (
@@ -189,7 +274,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     base.dokumente.some(x => x.typ === 'rechnung' && x.quelleAngebotId === angebotId);
 
   // ── Firma ─────────────────────────────────────────────────────────────────
-  const updateFirma = async (firma: Firma) => persist({ ...data, firma });
+  const updateFirma = async (firma: Firma) => {
+    await persist({ ...data, firma });
+    // Terminlink ins Akquise-Dokument spiegeln — Mitglieder sehen nur dieses.
+    if (akquisePfad && (firma.terminUrl ?? '') !== akquise.terminUrl) {
+      const next: AkquiseData = { ...akquise, terminUrl: firma.terminUrl ?? '' };
+      setAkquise(next);
+      await setDoc(doc(db, akquisePfad), sanitize(next));
+    }
+  };
 
   // ── Kunden ────────────────────────────────────────────────────────────────
   const addKunde = async (k: Omit<Kunde, 'id' | 'erstelltAm' | 'kundennummer'>) => {
@@ -295,11 +388,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       geaendertAm: new Date().toISOString(),
     }));
 
-  // ── Leads (gesternde Akquise-Einträge) ───────────────────────────────────
+  // ── Leads (Akquise-Einträge, eigenes Dokument) ────────────────────────────
   const upsertLead = async (lead: Lead) =>
-    persist({ ...data, leads: [...(data.leads ?? []).filter(l => l.id !== lead.id), lead] });
+    persistAkquise([...(akquise.leads ?? []).filter(l => l.id !== lead.id), lead]);
   const deleteLead = async (id: string) =>
-    persist({ ...data, leads: (data.leads ?? []).filter(l => l.id !== id) });
+    persistAkquise((akquise.leads ?? []).filter(l => l.id !== id));
 
   const addEingangsrechnung = async (e: Omit<Eingangsrechnung, 'id' | 'erstelltAm'> & { id?: string }) => {
     const { id: presetId, ...rest } = e;
@@ -342,8 +435,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Import / Export ───────────────────────────────────────────────────────
   const exportData = () => data;
-  const importData = async (imported: AppData) =>
-    persist({
+  const importData = async (imported: AppData) => {
+    nurInhaber();
+    await persist({
       ...emptyData,
       ...imported,
       firma: {
@@ -352,10 +446,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         kleinunternehmerRegelung: !!(imported.firma as Firma | undefined)?.kleinunternehmerRegelung,
       },
       projekte: imported.projekte ?? [],
-      leads: imported.leads ?? [],
+      leads: [],
       eingangsrechnungen: imported.eingangsrechnungen ?? [],
       serviceVertraege: imported.serviceVertraege ?? [],
     });
+    await persistAkquise(imported.leads ?? []);
+  };
 
   return (
     <AppContext.Provider value={{

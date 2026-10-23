@@ -97,7 +97,75 @@ function htmlZuKlartext(html: string): string {
   }
 }
 
-async function fetchSeiteHttp(url: string, timeoutMs = 6500): Promise<string> {
+/** Offensichtlich technische / Fremd-/Platzhalter-Adressen, die kein echter Kontakt sind. */
+const EMAIL_AUSSCHLUSS = [
+  'sentry', 'wixpress', 'example.', '@example', 'your-email', 'yourname', 'youremail',
+  'domain.com', 'domain.de', 'mustermann', 'muster@', 'test@test', 'email@example', 'name@',
+  'godaddy', 'cloudflare', 'jsdelivr', 'wordpress', 'cookiebot', 'borlabs', 'wp.com',
+  '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.ico', '.css', '.js', '.webmanifest',
+];
+
+/** Häufige Postfach-Präfixe eines Erstkontakts – nach Relevanz für die Auswahl der besten Adresse. */
+const EMAIL_PREFIX_RANG = [
+  'info', 'kontakt', 'mail', 'office', 'buero', 'hallo', 'anfrage', 'service',
+  'kanzlei', 'praxis', 'post', 'sekretariat', 'empfang',
+];
+
+function bereinigeEmail(roh: string): string | null {
+  let e = roh.trim().replace(/^mailto:/i, '');
+  e = e.split('?')[0]; // ?subject=… etc. abschneiden
+  e = e.replace(/^[<("'\s]+/, '').replace(/[>)"'\s.,;:]+$/, '');
+  e = e.replace(/\s+/g, '').toLowerCase();
+  if (e.length > 80) return null;
+  if (!/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(e)) return null;
+  for (const bad of EMAIL_AUSSCHLUSS) if (e.includes(bad)) return null;
+  return e;
+}
+
+/** Konservative De-Verschleierung: nur Klammer-/Wort-Varianten wie "info (at) firma (dot) de". */
+function deobfuskiere(html: string): string {
+  return html
+    .replace(/\s*[[({]\s*(?:at|ät)\s*[\])}]\s*/gi, '@')
+    .replace(/\s*[[({]\s*(?:dot|punkt)\s*[\])}]\s*/gi, '.');
+}
+
+/** Findet E-Mail-Adressen im ROH-HTML (inkl. mailto-Links und einfacher Verschleierung). */
+function extrahiereEmails(html: string): string[] {
+  if (!html) return [];
+  const quelle = html.length > MAX_HTML_RAW_CHARS ? html.slice(0, MAX_HTML_RAW_CHARS) : html;
+  const treffer = new Set<string>();
+  // 1) mailto:-Links (greifen auch, wenn der sichtbare Text keine Adresse zeigt)
+  for (const m of quelle.matchAll(/mailto:([^"'>?\s]+)/gi)) {
+    const e = bereinigeEmail(m[1]);
+    if (e) treffer.add(e);
+  }
+  // 2) Klartext-Adressen, inkl. einfach verschleierter Schreibweisen
+  const text = deobfuskiere(quelle);
+  for (const m of text.matchAll(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g)) {
+    const e = bereinigeEmail(m[0]);
+    if (e) treffer.add(e);
+  }
+  return [...treffer];
+}
+
+/** Wählt die plausibelste Kontakt-Adresse: Domain-Treffer und Postfach-Präfix gewichten. */
+function waehleBesteEmail(emails: string[], siteHost: string | null): string {
+  if (emails.length === 0) return '';
+  const host = (siteHost ?? '').replace(/^www\./i, '').toLowerCase();
+  const score = (e: string): number => {
+    const [prefix = '', domain = ''] = e.split('@');
+    let s = 0;
+    if (host && (domain === host || domain.endsWith(`.${host}`) || host.endsWith(`.${domain}`))) s += 100;
+    const rang = EMAIL_PREFIX_RANG.indexOf(prefix);
+    if (rang >= 0) s += 40 - rang * 2;
+    if (/^(noreply|no-reply|newsletter|abuse|postmaster|privacy|datenschutz)/.test(prefix)) s -= 30;
+    if (/(sentry|wix|wordpress|jimdo|google|gstatic)/.test(domain)) s -= 20;
+    return s;
+  };
+  return [...emails].sort((a, b) => score(b) - score(a))[0];
+}
+
+async function fetchSeiteHttp(url: string, timeoutMs = 6500): Promise<{ text: string; emails: string[] }> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
@@ -111,11 +179,11 @@ async function fetchSeiteHttp(url: string, timeoutMs = 6500): Promise<string> {
         'Accept-Language': 'de-DE,de;q=0.9,en;q=0.7',
       },
     });
-    if (!res.ok) return '';
+    if (!res.ok) return { text: '', emails: [] };
     const html = await readResponseTextLimited(res, MAX_HTML_RAW_CHARS, MAX_HTML_READ_BYTES);
-    return htmlZuKlartext(html);
+    return { text: htmlZuKlartext(html), emails: extrahiereEmails(html) };
   } catch {
-    return '';
+    return { text: '', emails: [] };
   } finally {
     clearTimeout(timer);
   }
@@ -125,22 +193,27 @@ async function ladeSeitenParallel(hauptUrl: string, impressumKandidaten: string[
   try {
     const MAX_IMPRESSUM = 6;
     const urls = [hauptUrl, ...impressumKandidaten.slice(0, MAX_IMPRESSUM)];
-    const texts = await Promise.all(urls.map(u => fetchSeiteHttp(u, 6500)));
-    const startseite = (texts[0] ?? '').slice(0, 4500);
+    const seiten = await Promise.all(urls.map(u => fetchSeiteHttp(u, 6500)));
+    const startseite = (seiten[0]?.text ?? '').slice(0, 4500);
     let impressum = '';
-    for (let i = 1; i < texts.length; i++) {
-      if (texts[i].length > 100) {
-        impressum = texts[i];
+    for (let i = 1; i < seiten.length; i++) {
+      if (seiten[i].text.length > 100) {
+        impressum = seiten[i].text;
         break;
       }
     }
+    // Impressum-/Kontakt-Treffer zuerst (verlässlicher), dann Startseite
+    const emails = new Set<string>();
+    for (let i = 1; i < seiten.length; i++) seiten[i].emails.forEach(e => emails.add(e));
+    seiten[0]?.emails.forEach(e => emails.add(e));
     return {
       startseite,
       impressum: impressum.slice(0, 2200),
+      emails: [...emails],
     };
   } catch (e) {
     console.error('ladeSeitenParallel:', e);
-    return { startseite: '', impressum: '' };
+    return { startseite: '', impressum: '', emails: [] as string[] };
   }
 }
 
@@ -148,9 +221,12 @@ async function ladeSeitenParallel(hauptUrl: string, impressumKandidaten: string[
  * Startseite mit Browserbase + Playwright (JS ausgeführt). Nur wenn Env gesetzt.
  * Vercel: BROWSERBASE_API_KEY (optional BROWSERBASE_PROJECT_ID).
  */
-async function fetchSeiteBrowserbase(url: string): Promise<string> {
+async function fetchSeiteBrowserbase(
+  url: string,
+  extraEmailUrls: string[] = []
+): Promise<{ text: string; emails: string[] }> {
   const apiKey = process.env.BROWSERBASE_API_KEY?.trim();
-  if (!apiKey) return '';
+  if (!apiKey) return { text: '', emails: [] };
   try {
     const { default: Browserbase } = await import('@browserbasehq/sdk');
     const { chromium } = await import('playwright-core');
@@ -162,7 +238,7 @@ async function fetchSeiteBrowserbase(url: string): Promise<string> {
       ...(projectId ? { projectId } : {}),
     });
     const connectUrl = session.connectUrl;
-    if (!connectUrl) return '';
+    if (!connectUrl) return { text: '', emails: [] };
 
     const browser = await chromium.connectOverCDP(connectUrl);
     try {
@@ -172,18 +248,82 @@ async function fetchSeiteBrowserbase(url: string): Promise<string> {
       await new Promise<void>(resolve => setTimeout(resolve, 1200));
       let html = await page.content();
       if (html.length > MAX_HTML_RAW_CHARS) html = html.slice(0, MAX_HTML_RAW_CHARS);
-      return htmlZuKlartext(html);
+      const emails = new Set(extrahiereEmails(html));
+      const text = htmlZuKlartext(html);
+      if (emails.size === 0) {
+        for (const u of extraEmailUrls.slice(0, 3)) {
+          try {
+            await page.goto(u, { waitUntil: 'domcontentloaded', timeout: 18000 });
+            await new Promise<void>(resolve => setTimeout(resolve, 800));
+            let extra = await page.content();
+            if (extra.length > MAX_HTML_RAW_CHARS) extra = extra.slice(0, MAX_HTML_RAW_CHARS);
+            extrahiereEmails(extra).forEach(e => emails.add(e));
+            if (emails.size > 0) break;
+          } catch {
+            /* nächste URL */
+          }
+        }
+      }
+      return { text, emails: [...emails] };
     } finally {
       await browser.close().catch(() => {});
     }
   } catch (e) {
     console.error('fetchSeiteBrowserbase:', e);
-    return '';
+    return { text: '', emails: [] };
+  }
+}
+
+/**
+ * Letzter Ausweg für die Kontakt-E-Mail: Impressum/Kontakt im echten Browser laden
+ * (eine Session, mehrere Seiten nacheinander) — fängt JS-gerenderte oder Bot-geschützte Seiten ab.
+ */
+async function fetchEmailsBrowserbase(urls: string[]): Promise<string[]> {
+  const apiKey = process.env.BROWSERBASE_API_KEY?.trim();
+  if (!apiKey || urls.length === 0) return [];
+  try {
+    const { default: Browserbase } = await import('@browserbasehq/sdk');
+    const { chromium } = await import('playwright-core');
+    const projectId = process.env.BROWSERBASE_PROJECT_ID?.trim();
+    const bb = new Browserbase({ apiKey });
+    const session = await bb.sessions.create({
+      timeout: 50,
+      region: 'eu-central-1',
+      ...(projectId ? { projectId } : {}),
+    });
+    const connectUrl = session.connectUrl;
+    if (!connectUrl) return [];
+
+    const browser = await chromium.connectOverCDP(connectUrl);
+    try {
+      const context = browser.contexts()[0] ?? (await browser.newContext());
+      const page = context.pages()[0] ?? (await context.newPage());
+      const gefunden = new Set<string>();
+      for (const u of urls.slice(0, 3)) {
+        try {
+          await page.goto(u, { waitUntil: 'domcontentloaded', timeout: 18000 });
+          await new Promise<void>(resolve => setTimeout(resolve, 800));
+          let html = await page.content();
+          if (html.length > MAX_HTML_RAW_CHARS) html = html.slice(0, MAX_HTML_RAW_CHARS);
+          extrahiereEmails(html).forEach(e => gefunden.add(e));
+          if (gefunden.size > 0) break;
+        } catch {
+          /* nächste URL versuchen */
+        }
+      }
+      return [...gefunden];
+    } finally {
+      await browser.close().catch(() => {});
+    }
+  } catch (e) {
+    console.error('fetchEmailsBrowserbase:', e);
+    return [];
   }
 }
 
 interface GeminiParsed {
   optimierungen?: unknown[];
+  seoOptimierungen?: unknown[];
   ansprechpartner?: string;
   zusammenfassung?: string;
   websiteGeladen?: boolean;
@@ -338,10 +478,21 @@ STRENGE REGELN:
 5. Formuliere die drei Optimierungen als klare Empfehlungen (Du/Sie-Kontext zum Unternehmen).
 6. Für jeden Optimierungspunkt: kurzer Titel (Überschrift), darunter die konkrete Empfehlung (1–2 Sätze).
 
+ZUSÄTZLICHER SEO-KURZCHECK (genau 3 Punkte, bewusst knapp — es ist ein Erstkontakt):
+- Stil nach „claude-seo“: jede Empfehlung evidenzbasiert und an Googles Primärquellen orientiert (Search Essentials, Search Quality Rater Guidelines, E-E-A-T) — keine SEO-Mythen, keine erfundenen Kennzahlen oder Rankings, keine Keyword-Dichte-Tricks.
+- Prüfe nur, was aus dem gelieferten Seiteninhalt ableitbar ist, z. B.: aussagekräftiger Seitentitel / Meta-Beschreibung, klare Überschriftenstruktur (eine eindeutige H1), beschreibende Inhalte zum konkreten Angebot, lokale SEO-Signale (Name/Adresse/Telefon konsistent, Standortbezug), Vertrauenssignale (Impressum, Bewertungen), strukturierte Daten.
+- Ist ein Signal nicht belegbar, formuliere die Empfehlung als prüfbaren nächsten Schritt („… sollte geprüft werden“), ohne zu behaupten, du hättest es gemessen.
+- Jeder SEO-Punkt: kurzer Titel + 1–2 Sätze konkrete, umsetzbare Empfehlung. Die SEO-Punkte sollen sich von den drei Optimierungen oben unterscheiden (Fokus auf Auffindbarkeit bei Google, nicht Optik/Bedienung).
+
 Antworte ausschließlich als ein einziges gültiges JSON-Objekt (kein Markdown, kein Text davor oder danach):
 {
   "optimierungen": [
     { "titel": "Kurze Überschrift für Punkt 1", "empfehlung": "Konkrete Empfehlung als Fließtext." },
+    { "titel": "…", "empfehlung": "…" },
+    { "titel": "…", "empfehlung": "…" }
+  ],
+  "seoOptimierungen": [
+    { "titel": "Kurzer SEO-Titel 1", "empfehlung": "Belegbare, an Google-Primärquellen orientierte SEO-Empfehlung (1–2 Sätze)." },
     { "titel": "…", "empfehlung": "…" },
     { "titel": "…", "empfehlung": "…" }
   ],
@@ -420,30 +571,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const website = String(body.website ?? '');
     const name = String(body.name ?? '');
     const branche = body.branche != null ? String(body.branche) : '';
+    const nurKontakt = body.nurKontakt === true;
 
     const GEMINI_KEY = process.env.GEMINI_API_KEY;
-    if (!GEMINI_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY nicht konfiguriert' });
+    if (!nurKontakt && !GEMINI_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY nicht konfiguriert' });
 
     let hauptseite = '';
     let impressum = '';
     let fetchMethode: 'http' | 'browserbase' = 'http';
+    let gefundeneEmails: string[] = [];
+    let impressumKandidaten: string[] = [];
     const hauptUrlNorm = normalisiereWebsiteUrl(website);
 
     if (hauptUrlNorm) {
       const basis = basisAusUrl(hauptUrlNorm);
       if (basis) {
-        const impressumKandidaten = [
+        impressumKandidaten = [
           `${basis}/impressum`,
           `${basis}/impressum.html`,
           `${basis}/impressum.php`,
+          `${basis}/impressum/`,
           `${basis}/ueber-uns`,
           `${basis}/kontakt`,
+          `${basis}/kontakt.html`,
           `${basis}/de/impressum`,
           `${basis}/legal/imprint`,
+          `${basis}/imprint`,
         ];
         const geladen = await ladeSeitenParallel(hauptUrlNorm, impressumKandidaten);
         hauptseite = geladen.startseite;
         impressum = geladen.impressum;
+        gefundeneEmails = geladen.emails;
       }
     }
 
@@ -451,15 +609,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     /** HTTP oft nur Bot-Schutz/leere Shell → dann Browserbase versuchen */
     const startZuDuenn = hauptseite.trim().length < 120;
     const bbKey = process.env.BROWSERBASE_API_KEY?.trim();
-    if (bbKey && hauptUrlNorm && (!hatInhalt || startZuDuenn)) {
-      const bbText = await fetchSeiteBrowserbase(hauptUrlNorm);
-      if (bbText.length >= 40 && bbText.length > hauptseite.length) {
-        hauptseite = bbText.slice(0, 4500);
+    const brauchtBrowserInhalt = !!(bbKey && hauptUrlNorm && (!hatInhalt || startZuDuenn));
+    const brauchtBrowserEmail = !!(bbKey && hauptUrlNorm && gefundeneEmails.length === 0);
+
+    if (brauchtBrowserInhalt) {
+      const bb = await fetchSeiteBrowserbase(
+        hauptUrlNorm!,
+        brauchtBrowserEmail ? impressumKandidaten : []
+      );
+      if (bb.text.length >= 40 && bb.text.length > hauptseite.length) {
+        hauptseite = bb.text.slice(0, 4500);
         fetchMethode = 'browserbase';
       }
+      if (bb.emails.length) gefundeneEmails = [...new Set([...gefundeneEmails, ...bb.emails])];
+    } else if (brauchtBrowserEmail) {
+      /** Impressum/Kontakt im echten Browser — bevor Gemini startet, sonst wird das auf Vercel oft abgeschnitten. */
+      const bbEmails = await fetchEmailsBrowserbase([...impressumKandidaten, hauptUrlNorm!]);
+      if (bbEmails.length) gefundeneEmails = bbEmails;
     }
 
     hatInhalt = hauptseite.length > 50 || impressum.length > 50;
+
+    let siteHost: string | null = null;
+    try {
+      siteHost = hauptUrlNorm ? new URL(hauptUrlNorm).hostname : null;
+    } catch {
+      siteHost = null;
+    }
+
+    if (nurKontakt) {
+      return res.status(200).json({
+        kontaktEmail: waehleBesteEmail(gefundeneEmails, siteHost),
+        websiteGeladen: hatInhalt,
+        seitenabrufMethode: fetchMethode,
+      });
+    }
 
     let kontextHerkunft =
       fetchMethode === 'browserbase'
@@ -468,7 +652,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     let prompt = buildAnalysePrompt(name, branche, website, hauptUrlNorm, hauptseite, impressum, kontextHerkunft, hatInhalt);
 
-    let geminiOut = await rufeGeminiAuf(prompt, GEMINI_KEY, 48_000);
+    let geminiOut = await rufeGeminiAuf(prompt, GEMINI_KEY!, 48_000);
     if (!geminiOut.ok) {
       if (geminiOut.status != null && geminiOut.geminiData != null) {
         const errMsg =
@@ -489,15 +673,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     /** KI lieferte kein brauchbares JSON oder Fallback — einmal Browserbase + zweiter Gemini-Lauf (echtes Rendering). */
     if (geminiAntwortIstFallback(parsed) && bbKey && hauptUrlNorm && fetchMethode === 'http') {
-      const bbText = await fetchSeiteBrowserbase(hauptUrlNorm);
-      if (bbText.length >= 80) {
-        hauptseite = bbText.slice(0, 4500);
+      const bb = await fetchSeiteBrowserbase(
+        hauptUrlNorm,
+        gefundeneEmails.length === 0 ? impressumKandidaten : []
+      );
+      if (bb.emails.length) gefundeneEmails = [...new Set([...gefundeneEmails, ...bb.emails])];
+      if (bb.text.length >= 80) {
+        hauptseite = bb.text.slice(0, 4500);
         fetchMethode = 'browserbase';
         hatInhalt = hauptseite.length > 50 || impressum.length > 50;
         kontextHerkunft =
           'Die Startseite wurde in einem echten Browser (Browserbase, JavaScript aktiv) geladen — zweiter Versuch nach unbrauchbarer KI-Antwort beim reinen HTTP-Abruf.';
         prompt = buildAnalysePrompt(name, branche, website, hauptUrlNorm, hauptseite, impressum, kontextHerkunft, hatInhalt);
-        geminiOut = await rufeGeminiAuf(prompt, GEMINI_KEY, 48_000);
+        geminiOut = await rufeGeminiAuf(prompt, GEMINI_KEY!, 48_000);
         if (geminiOut.ok) {
           parsed = parseGeminiJson(geminiOut.rawText);
         }
@@ -505,10 +693,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const opts = optimierungenAusAntwort(Array.isArray(parsed.optimierungen) ? parsed.optimierungen : []);
+    const seoOpts = optimierungenAusAntwort(Array.isArray(parsed.seoOptimierungen) ? parsed.seoOptimierungen : []);
+    const kontaktEmail = waehleBesteEmail(gefundeneEmails, siteHost);
 
     return res.status(200).json({
       optimierungen: opts,
+      seoOptimierungen: seoOpts,
       ansprechpartner: parsed.ansprechpartner ?? '',
+      kontaktEmail,
       zusammenfassung: parsed.zusammenfassung ?? '',
       websiteGeladen: hatInhalt,
       analysiertAm: new Date().toISOString(),

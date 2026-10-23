@@ -175,7 +175,11 @@ export interface OptimierungPunkt {
 export interface LeadAnalyse {
   /** KI liefert strukturierte Punkte; ältere Daten können reine Strings sein */
   optimierungen: (string | OptimierungPunkt)[];
+  /** Kurzer, belegbarer SEO-Check (Erstkontakt, bis zu 3 Punkte) – optional, ältere Daten haben das nicht */
+  seoOptimierungen?: (string | OptimierungPunkt)[];
   ansprechpartner: string;
+  /** Aus Impressum/Website automatisch extrahierte Kontakt-E-Mail (falls gefunden) */
+  kontaktEmail?: string;
   zusammenfassung: string;
   websiteGeladen: boolean;
   analysiertAm: string;
@@ -222,4 +226,45 @@ export interface AppData {
   leads: Lead[];
   eingangsrechnungen: Eingangsrechnung[];
   serviceVertraege: ServiceVertrag[];
+}
+
+// ─── Zugriff / Freigaben ─────────────────────────────────────────────────────
+
+/**
+ * „inhaber“ sieht den kompletten Arbeitsbereich, „akquise“ ausschließlich das
+ * Akquise-Tool. Die Rolle wird nicht nur in der Oberfläche, sondern auch in den
+ * Firestore-Regeln durchgesetzt (siehe firestore.rules).
+ */
+export type Rolle = 'inhaber' | 'akquise';
+
+/**
+ * Ein vom Inhaber freigeschalteter Zugang. Dokument-ID ist die E-Mail-Adresse
+ * in Kleinbuchstaben, damit die Regeln sie direkt gegen das Auth-Token prüfen
+ * können — der Zugang lässt sich dadurch anlegen, bevor sich die Person zum
+ * ersten Mal anmeldet.
+ */
+export interface Mitglied {
+  email: string;
+  name: string;
+  rolle: 'akquise';
+  erstelltAm: string;
+}
+
+/** Zeiger von einer E-Mail-Adresse auf den freigebenden Arbeitsbereich. */
+export interface Mitgliedschaft {
+  ownerUid: string;
+  ownerName: string;
+  rolle: 'akquise';
+  erstelltAm: string;
+}
+
+/**
+ * Der für Akquise-Mitglieder lesbare Teil der Daten. Bewusst getrennt von
+ * `AppData` gespeichert: Firestore-Regeln greifen pro Dokument, deshalb dürfen
+ * hier keine Umsätze, Rechnungen oder Kundendaten hinein.
+ */
+export interface AkquiseData {
+  leads: Lead[];
+  /** Terminlink für die Akquise-E-Mails; gespiegelt aus `Firma.terminUrl`. */
+  terminUrl: string;
 }

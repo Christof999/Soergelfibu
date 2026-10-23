@@ -17,6 +17,7 @@ import {
   Handshake,
   Menu,
   X,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
@@ -33,6 +34,9 @@ const navItems = [
   { to: '/fibu', label: 'Fibu', icon: Wallet },
   { to: '/einstellungen', label: 'Einstellungen', icon: Settings },
 ];
+
+/** Im Akquise-Zugang steht nur das Akquise-Tool zur Verfügung. */
+const akquiseNavItems = navItems.filter(i => i.to === '/akquise');
 
 function BrandBlock({ compact }: { compact?: boolean }) {
   const { syncing } = useApp();
@@ -66,9 +70,10 @@ function BrandBlock({ compact }: { compact?: boolean }) {
 }
 
 export default function Layout() {
-  const { user, logout } = useAuth();
+  const { user, logout, rolle, freigabe, arbeitsbereich, setArbeitsbereich } = useAuth();
   const location = useLocation();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const sichtbareNavItems = rolle === 'akquise' ? akquiseNavItems : navItems;
 
   useEffect(() => {
     setMobileNavOpen(false);
@@ -126,7 +131,7 @@ export default function Layout() {
         </div>
 
         <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto scrollbar-thin">
-          {navItems.map(({ to, label, icon: Icon, end }) => (
+          {sichtbareNavItems.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}
               to={to}
@@ -153,6 +158,23 @@ export default function Layout() {
 
         {/* User-Bereich */}
         <div className="p-3 border-t border-dark-700 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          {freigabe && (
+            <button
+              type="button"
+              onClick={() => setArbeitsbereich(arbeitsbereich === 'freigabe' ? 'eigen' : 'freigabe')}
+              className="w-full flex items-center gap-2 px-2 py-2 mb-1 rounded-lg text-left text-gray-400 hover:bg-dark-700 hover:text-gray-100 transition-[background-color,color,transform] duration-150 ease-out active:scale-[0.97]"
+            >
+              <ArrowLeftRight size={14} className="shrink-0" />
+              <span className="flex-1 min-w-0">
+                <span className="block text-xs font-medium truncate">
+                  {arbeitsbereich === 'freigabe' ? 'Akquise-Zugang' : 'Eigener Bereich'}
+                </span>
+                <span className="block text-xs text-gray-500 truncate">
+                  Wechseln zu {arbeitsbereich === 'freigabe' ? 'eigenem Bereich' : freigabe.ownerName || 'Freigabe'}
+                </span>
+              </span>
+            </button>
+          )}
           <div className="flex items-center gap-2 px-2 py-2">
             {user?.photoURL ? (
               <img src={user.photoURL} alt="Avatar" className="w-7 h-7 rounded-full shrink-0" />
