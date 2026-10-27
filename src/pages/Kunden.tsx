@@ -37,10 +37,11 @@ function KundeForm({
 
   const field = (label: string, name: keyof FormData, opts?: object) => (
     <div>
-      <label className="block text-xs font-medium text-gray-400 mb-1">{label}</label>
+      <label htmlFor={`kunde-${name}`} className="block text-xs font-medium text-gray-400 mb-1">{label}</label>
       <input
+        id={`kunde-${name}`}
         {...register(name, opts)}
-        className="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+        className="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-base sm:text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
       />
       {errors[name] && <p className="text-xs text-red-400 mt-1">{String(errors[name]?.message)}</p>}
     </div>
@@ -48,34 +49,35 @@ function KundeForm({
 
   return (
     <form onSubmit={handleSubmit(onSave)} className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {field('Firma / Name *', 'firma', { required: 'Pflichtfeld' })}
         {field('Ansprechpartner', 'ansprechpartner')}
         {field('E-Mail', 'email')}
         {field('Telefon', 'telefon')}
       </div>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {field('Straße', 'strasse')}
         {field('PLZ', 'plz')}
         {field('Ort', 'ort')}
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {field('Land', 'land')}
         {field('USt-IdNr.', 'ustId')}
       </div>
       <div>
-        <label className="block text-xs font-medium text-gray-400 mb-1">Notizen</label>
+        <label htmlFor="kunde-notizen" className="block text-xs font-medium text-gray-400 mb-1">Notizen</label>
         <textarea
+          id="kunde-notizen"
           {...register('notizen')}
           rows={3}
-          className="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+          className="w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-base sm:text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
         />
       </div>
       <div className="flex justify-end gap-3 pt-2">
-        <button type="button" onClick={onCancel} className="px-4 py-2 text-sm rounded-lg border border-dark-700 text-gray-400 hover:bg-dark-700 hover:text-gray-200 transition-colors">
+        <button type="button" onClick={onCancel} className="flex-1 sm:flex-none min-h-11 sm:min-h-0 px-4 py-2 text-sm rounded-lg border border-dark-700 text-gray-400 hover:bg-dark-700 hover:text-gray-200 transition-colors">
           Abbrechen
         </button>
-        <button type="submit" className="px-4 py-2 text-sm rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-colors">
+        <button type="submit" className="flex-1 sm:flex-none min-h-11 sm:min-h-0 px-4 py-2 text-sm rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-colors">
           Speichern
         </button>
       </div>
@@ -108,6 +110,29 @@ export default function Kunden() {
     setModalOpen(false);
   };
 
+  const aktionen = (kunde: Kunde) => (
+    <>
+      <button
+        type="button"
+        onClick={() => openEdit(kunde)}
+        aria-label={`${kunde.firma} bearbeiten`}
+        title="Bearbeiten"
+        className="p-3 md:p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors"
+      >
+        <Pencil size={20} className="md:w-3.5 md:h-3.5" />
+      </button>
+      <button
+        type="button"
+        onClick={() => setDeleteId(kunde.id)}
+        aria-label={`${kunde.firma} löschen`}
+        title="Löschen"
+        className="p-3 md:p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors"
+      >
+        <Trash2 size={20} className="md:w-3.5 md:h-3.5" />
+      </button>
+    </>
+  );
+
   return (
     <div>
       <PageHeader
@@ -116,21 +141,22 @@ export default function Kunden() {
         actions={
           <button
             onClick={openCreate}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
+            className="flex items-center gap-2 min-h-11 md:min-h-0 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
           >
             <Plus size={16} /> Neuer Kunde
           </button>
         }
       />
 
-      <div className="p-8 space-y-4">
+      <div className="p-4 sm:p-8 space-y-4">
         <div className="relative">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
+            aria-label="Kunden suchen"
             placeholder="Suchen nach Firma, Name, E-Mail…"
-            className="w-full pl-9 pr-4 py-2.5 bg-dark-800 border border-dark-700 rounded-xl text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="w-full pl-9 pr-4 py-2.5 bg-dark-800 border border-dark-700 rounded-xl text-base sm:text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>
 
@@ -145,7 +171,8 @@ export default function Kunden() {
             )}
           </div>
         ) : (
-          <div className="bg-dark-800 rounded-2xl border border-dark-700 overflow-hidden">
+          <>
+          <div className="hidden md:block bg-dark-800 rounded-2xl border border-dark-700 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-dark-900/60 text-left border-b border-dark-700">
@@ -166,26 +193,36 @@ export default function Kunden() {
                     <td className="px-5 py-3 text-gray-400">{k.email}</td>
                     <td className="px-5 py-3 text-gray-400">{k.plz} {k.ort}</td>
                     <td className="px-5 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => openEdit(k)}
-                          className="p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          onClick={() => setDeleteId(k.id)}
-                          className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
+                      <div className="flex items-center justify-end gap-1">{aktionen(k)}</div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+
+          <ul className="md:hidden bg-dark-800 rounded-2xl border border-dark-700 divide-y divide-dark-700 overflow-hidden">
+            {filtered.map(k => (
+              <li key={k.id} className="p-4 space-y-2">
+                <button type="button" onClick={() => openEdit(k)} className="w-full min-h-11 text-left space-y-1 [overflow-wrap:anywhere]">
+                  <p className="font-medium text-gray-100">{k.firma}</p>
+                  <p className="text-xs text-gray-500 font-mono">{k.kundennummer}</p>
+                  {k.ansprechpartner && <p className="text-sm text-gray-400">{k.ansprechpartner}</p>}
+                </button>
+                {(k.email || k.telefon) && (
+                  <div className="text-sm [overflow-wrap:anywhere]">
+                    {k.email && <a href={`mailto:${k.email}`} className="flex items-center min-h-11 py-2 text-primary-400 hover:underline">{k.email}</a>}
+                    {k.telefon && <a href={`tel:${k.telefon}`} className="flex items-center min-h-11 py-2 text-primary-400 hover:underline">{k.telefon}</a>}
+                  </div>
+                )}
+                <div className="flex items-center justify-between gap-2">
+                  <p className="min-w-0 text-sm text-gray-500 [overflow-wrap:anywhere]">{k.plz} {k.ort}</p>
+                  <div className="flex items-center gap-1 shrink-0">{aktionen(k)}</div>
+                </div>
+              </li>
+            ))}
+          </ul>
+          </>
         )}
       </div>
 
