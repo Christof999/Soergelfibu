@@ -84,6 +84,42 @@ function datumAusRedditId(url: string): string {
   return new Date(Math.min(t, Date.now())).toISOString().slice(0, 10);
 }
 
+const MONATE: Record<string, number> = {
+  jan: 0, feb: 1, mär: 2, mar: 2, apr: 3, mai: 4, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, okt: 9, oct: 9, nov: 10, dez: 11, dec: 11,
+};
+const TAGE_PRO_EINHEIT: [RegExp, number][] = [
+  [/^(min|std|stunde|hour)/, 0],
+  [/^(tag|day)/, 1],
+  [/^(woche|week)/, 7],
+  [/^(monat|month)/, 30],
+  [/^(jahr|year)/, 365],
+];
+
+/** Datumsangabe, wie sie auf einer Seite steht („17.03.2026“, „vor 14 Jahren“, „Jan 15, 2025“) → YYYY-MM-DD. */
+function datumAusText(roh: string): string {
+  const s = roh.toLowerCase().replace(/[^\p{L}\p{N}.\-:, ]/gu, ' ').trim();
+  const iso = (d: Date) => (Number.isNaN(d.getTime()) || d.getTime() > Date.now() ? '' : d.toISOString().slice(0, 10));
+
+  let m = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return iso(new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])));
+  m = s.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+  if (m) return iso(new Date(Date.UTC(+m[3], +m[2] - 1, +m[1])));
+  m = s.match(/(\d{1,2})\.? ([a-zä]{3})[a-zä]* (\d{4})/) ?? s.match(/([a-zä]{3})[a-zä]* (\d{1,2}),? (\d{4})/);
+  if (m) {
+    const [tag, monat] = /^\d/.test(m[1]) ? [+m[1], m[2]] : [+m[2], m[1]];
+    if (monat in MONATE) return iso(new Date(Date.UTC(+m[3], MONATE[monat], tag)));
+  }
+  if (/gestern|yesterday/.test(s)) return iso(new Date(Date.now() - 86_400_000));
+  if (/heute|today|gerade|just now/.test(s)) return iso(new Date());
+  m = s.match(/vor (\d+|einer?m?|einem) ([a-z]+)/) ?? s.match(/(\d+|an?) ([a-z]+) ago/);
+  if (m) {
+    const anzahl = /^\d+$/.test(m[1]) ? +m[1] : 1;
+    const tage = TAGE_PRO_EINHEIT.find(([re]) => re.test(m![2]))?.[1];
+    if (tage !== undefined) return iso(new Date(Date.now() - anzahl * tage * 86_400_000));
+  }
+  return '';
+}
+
 function quelleAusUrl(url: string): string {
   try {
     return new URL(url).hostname.replace(/^www\./, '');
@@ -172,7 +208,8 @@ async function ladeBrowserbase(urls: string[]): Promise<Map<string, { text: stri
       try {
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: Math.min(15_000, rest) });
         await page.waitForTimeout(1000);
-        const text = (await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').trim();        ergebnis.set(url, { text, datum: datumAusHtml(await page.content()) });
+        const text = (await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').trim();
+        ergebnis.set(url, { text, datum: datumAusHtml(await page.content()) });
       } catch {
         /* nächste Seite */
       }
@@ -222,13 +259,14 @@ async function sucheKandidaten(suchanfragen: string[], key: string): Promise<str
  * Reddit sperrt sowohl Vercel als auch Browserbase (ohne bezahlte Proxys), Google nicht.
  * Wörtliche Wiedergabe verweigert Gemini (RECITATION), daher Zusammenfassung.
  */
-async function leseMitGemini(url: string, key: string): Promise<{ text: string; datum: '' } | null> {
+async function leseMitGemini(url: string, key: string): Promise<{ text: string; datum: string } | null> {
   try {
     const { text } = await gemini(
       {
         contents: [{ parts: [{ text: `Rufe diese Seite ab: ${url}
 Fasse in eigenen Worten zusammen: Titel, was die Person sucht oder kritisiert und was bisher geantwortet wurde.
-Antworte nur mit JSON: {"titel":"","inhalt":""}` }] }],
+Gib außerdem das Veröffentlichungsdatum des Eingangsbeitrags genau so an, wie es auf der Seite steht (z. B. "17.03.2026" oder "vor 14 Jahren"), sonst "".
+Antworte nur mit JSON: {"titel":"","inhalt":"","datumAufSeite":""}` }] }],
         tools: [{ url_context: {} }],
         // Ohne Denkphase kam im Test bei 8 von 8 Aufrufen eine leere Antwort.
         generationConfig: { temperature: 0.2, thinkingConfig: { thinkingBudget: 512 } },
@@ -236,9 +274,15 @@ Antworte nur mit JSON: {"titel":"","inhalt":""}` }] }],
       key,
       30_000,
     );
-    const s = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1)) as { titel?: string; inhalt?: string };
-    // Datum bewusst leer: Gemini lag im Test um Monate daneben.
-    return s.inhalt ? { text: `${s.titel ?? ''}\n${s.inhalt}`, datum: '' } : null;
+    const s = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1)) as {
+      titel?: string;
+      inhalt?: string;
+      datumAufSeite?: string;
+    };
+    if (!s.inhalt) return null;
+    // Gemini liest das Datum zuverlässig ab, rechnet „vor 2 Jahren“ aber falsch um — das macht der Code.
+    const datum = datumAusRedditId(url) || datumAusText(s.datumAufSeite ?? '');
+    return { text: `${s.titel ?? ''}\n${s.inhalt}`, datum };
   } catch (e) {
     console.error(`api/gesuche URL-Kontext ${url}:`, e instanceof Error ? e.message : e);
     return null;
@@ -268,7 +312,7 @@ async function ladeSeiten(urls: string[], key: string): Promise<GeladeneSeite[]>
 
   return urls.flatMap(url => {
     const s = geladen.get(url);
-    return s ? [{ url, text: s.text.slice(0, MAX_SEITENTEXT), datum: s.datum || datumAusRedditId(url) }] : [];
+    return s ? [{ url, text: s.text.slice(0, MAX_SEITENTEXT), datum: s.datum }] : [];
   });
 }
 
@@ -316,7 +360,8 @@ ${seiten.map((s, i) => `=== SEITE ${i} | ${s.url}${s.datum ? ` | veröffentlicht
       const o = b as Record<string, unknown>;
       const seite = seiten[Number(o.index)];
       if (!seite || o.relevant !== true) return [];
-      if (seite.datum && new Date(seite.datum).getTime() < grenze) return [];
+      // Ohne Datum lässt sich nicht prüfen, ob noch Interesse besteht (Test: 14 Jahre alter Thread rutschte durch).
+      if (!seite.datum || new Date(seite.datum).getTime() < grenze) return [];
       return [{
         url: seite.url,
         titel: String(o.titel ?? '').trim() || quelleAusUrl(seite.url),
