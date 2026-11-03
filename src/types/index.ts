@@ -214,6 +214,18 @@ export interface GesuchTreffer {
   score: number;
   zusammenfassung: string;
   antwortVorschlag: string;
+  /** ISO-Zeitpunkt, zu dem die automatische Suche den Beitrag gefunden hat */
+  gefundenAm: string;
+}
+
+/** Was api/gesuche.ts der App über die automatische Suche liefert. */
+export interface GesucheZustand {
+  einstellungen: { email: string; suchanfragen: string[]; tage: number };
+  treffer: GesuchTreffer[];
+  letzterLauf: { am: string; neueUrls: number; neueTreffer: number } | null;
+  /** Anzahl Geräte mit aktivem Push */
+  pushGeraete: number;
+  vapidPublicKey: string;
 }
 
 /** Eingangsrechnung (Buchhaltung / Fibu) */

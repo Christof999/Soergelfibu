@@ -44,6 +44,8 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         navigateFallback: '/index.html',
+        // Web-Push für „Gesuche im Netz“ (public/push-sw.js)
+        importScripts: ['push-sw.js'],
       },
     }),
   ],

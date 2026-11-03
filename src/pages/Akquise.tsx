@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Search, Star, Globe, Phone, Mail, MapPin, Loader2,
   Sparkles, ChevronDown, ChevronUp, ExternalLink, Trash2,
@@ -8,6 +9,7 @@ import EmailModal from '../components/EmailModal';
 import GesucheImNetz from '../components/GesucheImNetz';
 import PageHeader from '../components/PageHeader';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { Lead, LeadAnalyse } from '../types';
 import type { AkquiseEmailTemplateKind } from '../utils/emailTemplate';
 import { normalizeOptimierungenFromApi, normalizeOptimierungenListe, parseOptimierungPunkt, sanitizeAnalyseZusammenfassungDisplay } from '../utils/leadAnalyse';
@@ -305,7 +307,12 @@ type Ansicht = 'suche' | 'potentiell' | 'gesuche';
 export default function Akquise() {
   const { data, upsertLead, deleteLead } = useApp();
 
-  const [ansicht, setAnsicht] = useState<Ansicht>('suche');
+  const { rolle } = useAuth();
+  // Push-Nachrichten verlinken auf ?ansicht=gesuche. Den Reiter sieht nur der Inhaber.
+  const [suchParameter] = useSearchParams();
+  const [ansicht, setAnsicht] = useState<Ansicht>(
+    rolle === 'inhaber' && suchParameter.get('ansicht') === 'gesuche' ? 'gesuche' : 'suche',
+  );
   const [emailModal, setEmailModal] = useState<{ lead: Lead; mode: AkquiseEmailTemplateKind } | null>(null);
   const [query, setQuery] = useState('');
   const [plz, setPlz] = useState('91732');
@@ -448,7 +455,7 @@ export default function Akquise() {
         {([
           { id: 'suche', label: 'Suche & Entdecken' },
           { id: 'potentiell', label: `Potentielle Kunden${potentielle.length > 0 ? ` (${potentielle.length})` : ''}` },
-          { id: 'gesuche', label: 'Gesuche im Netz' },
+          ...(rolle === 'inhaber' ? [{ id: 'gesuche', label: 'Gesuche im Netz' }] : []),
         ] as { id: Ansicht; label: string }[]).map(t => (
           <button
             type="button"

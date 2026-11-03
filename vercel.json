@@ -5,7 +5,7 @@
       "memory": 1024
     },
     "api/gesuche.ts": {
-      "maxDuration": 120,
+      "maxDuration": 180,
       "memory": 1024
     },
     "api/**/*.ts": {
@@ -13,7 +13,19 @@
     }
   },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/gesuche?lauf=cron",
+      "schedule": "0 5 * * *"
+    }
   ]
 }
