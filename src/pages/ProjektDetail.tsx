@@ -326,8 +326,14 @@ function AnhangItem({ a, onDelete }: { a: KommunikationsAnhang; onDelete: () => 
     <div className="group relative">
       {isImage ? (
         <div className="relative w-24 h-20 rounded-lg overflow-hidden border border-dark-600 bg-dark-900">
-          <img src={a.url} alt={a.name} className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+          {/* Handy: Bild antippen öffnet es, Löschen sitzt fest in der Ecke (kein Hover am Touchscreen). */}
+          <a href={a.url} target="_blank" rel="noopener noreferrer" className="block w-full h-full">
+            <img src={a.url} alt={a.name} className="w-full h-full object-cover" />
+          </a>
+          <button onClick={onDelete} aria-label={`${a.name} löschen`} className="md:hidden absolute top-0.5 right-0.5 p-1.5 rounded bg-red-600/80 text-white">
+            <X size={14} />
+          </button>
+          <div className="hidden absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity md:flex items-center justify-center gap-1">
             <a href={a.url} target="_blank" rel="noopener noreferrer" className="p-1 rounded bg-white/10 text-white hover:bg-white/20 transition-colors" title="Öffnen">
               <Eye size={12} />
             </a>
@@ -335,7 +341,7 @@ function AnhangItem({ a, onDelete }: { a: KommunikationsAnhang; onDelete: () => 
               <X size={12} />
             </button>
           </div>
-          <p className="absolute bottom-0 left-0 right-0 px-1 py-0.5 bg-black/60 text-white text-xs truncate">{a.name}</p>
+          <p className="pointer-events-none absolute bottom-0 left-0 right-0 px-1 py-0.5 bg-black/60 text-white text-xs truncate">{a.name}</p>
         </div>
       ) : (
         <div className="flex items-center gap-2 px-3 py-2 bg-dark-900 border border-dark-600 rounded-lg">
@@ -344,8 +350,8 @@ function AnhangItem({ a, onDelete }: { a: KommunikationsAnhang; onDelete: () => 
             <a href={a.url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary-400 hover:underline truncate block">{a.name}</a>
             <span className="text-xs text-gray-600">{sizeMb} MB</span>
           </div>
-          <button onClick={onDelete} className="p-1 rounded text-gray-600 hover:text-red-400 hover:bg-red-900/30 transition-colors opacity-0 group-hover:opacity-100">
-            <X size={12} />
+          <button onClick={onDelete} aria-label={`${a.name} löschen`} className="p-2.5 md:p-1 -mr-2 md:mr-0 rounded text-gray-600 hover:text-red-400 hover:bg-red-900/30 transition-colors md:opacity-0 md:group-hover:opacity-100">
+            <X size={16} className="md:w-3 md:h-3" />
           </button>
         </div>
       )}
@@ -503,19 +509,19 @@ export default function ProjektDetail() {
   return (
     <div>
       {/* Kopf */}
-      <div className="bg-dark-800 border-b border-dark-700 px-8 py-5">
-        <button onClick={() => navigate('/projekte')} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 mb-3 transition-colors">
+      <div className="bg-dark-800 border-b border-dark-700 px-4 sm:px-8 py-5">
+        <button onClick={() => navigate('/projekte')} className="flex items-center gap-1.5 min-h-11 sm:min-h-0 -mt-2 sm:mt-0 text-xs text-gray-500 hover:text-gray-300 sm:mb-3 transition-colors">
           <ArrowLeft size={14} /> Alle Projekte
         </button>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-xl font-bold text-gray-100">{projekt.name}</h1>
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-1">
+              <h1 className="text-xl font-bold text-gray-100 [overflow-wrap:anywhere]">{projekt.name}</h1>
               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_CLS[projekt.status]}`}>
                 {STATUS_LABELS[projekt.status]}
               </span>
             </div>
-            <div className="flex items-center gap-3 text-xs text-gray-500">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
               {kunde && <span>{kunde.firma || kunde.ansprechpartner}</span>}
               {angebot && <><span>·</span><span className="text-gray-600">{angebot.nummer}</span></>}
               <span>·</span>
@@ -525,19 +531,21 @@ export default function ProjektDetail() {
           <select
             value={projekt.status}
             onChange={e => setStatus(e.target.value as ProjektStatus)}
-            className="bg-dark-900 border border-dark-700 rounded-lg px-3 py-1.5 text-xs text-gray-300 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            aria-label="Projektstatus"
+            className="self-start min-h-11 sm:min-h-0 bg-dark-900 border border-dark-700 rounded-lg px-3 py-1.5 text-xs text-gray-300 focus:outline-none focus:ring-1 focus:ring-primary-500"
           >
             {(Object.keys(STATUS_LABELS) as ProjektStatus[]).map(s => (
               <option key={s} value={s}>{STATUS_LABELS[s]}</option>
             ))}
           </select>
         </div>
-        <div className="flex gap-1 mt-5">
+        {/* Scrollt am Handy in sich, statt die ganze Seite seitlich verschiebbar zu machen. */}
+        <div className="flex gap-1 mt-5 -mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto scrollbar-thin">
           {tabs.map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`shrink-0 whitespace-nowrap min-h-11 sm:min-h-0 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 tab === t.id ? 'bg-primary-600/20 text-primary-300' : 'text-gray-500 hover:text-gray-300 hover:bg-dark-700'
               }`}
             >
@@ -550,7 +558,7 @@ export default function ProjektDetail() {
         </div>
       </div>
 
-      <div className="p-8">
+      <div className="p-4 sm:p-8">
 
         {/* ── Übersicht ── */}
         {tab === 'uebersicht' && (

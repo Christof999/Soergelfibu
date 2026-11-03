@@ -27,7 +27,7 @@ interface Props {
 }
 
 const inputCls = "w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500";
-const cellInput = "bg-dark-900 border border-dark-700 rounded px-2 py-1.5 text-xs text-gray-200 focus:outline-none focus:ring-1 focus:ring-primary-500 w-full";
+const cellInput = "bg-dark-900 border border-dark-700 rounded px-2 py-2.5 sm:py-1.5 text-xs text-gray-200 focus:outline-none focus:ring-1 focus:ring-primary-500 w-full";
 
 function PositionRow({
   pos,
@@ -79,7 +79,7 @@ function PositionRow({
       {/* Zeile 1: Nummer + Bezeichnung + Artikel-Picker + Löschen */}
       <div className="flex items-start gap-2">
         <span className="text-xs text-gray-500 w-5 pt-2 text-center shrink-0">{idx + 1}</span>
-        <div className="flex-1 relative" ref={dropRef}>
+        <div className="flex-1 min-w-0 relative" ref={dropRef}>
           <div className="flex gap-1.5">
             <input
               value={pos.bezeichnung}
@@ -91,7 +91,7 @@ function PositionRow({
               <button
                 type="button"
                 onClick={() => setOpen(v => !v)}
-                className="shrink-0 bg-dark-900 border border-dark-700 rounded px-2 py-1.5 text-gray-400 hover:text-primary-400 hover:border-primary-600 transition-colors"
+                className="shrink-0 bg-dark-900 border border-dark-700 rounded px-3 sm:px-2 py-1.5 text-gray-400 hover:text-primary-400 hover:border-primary-600 transition-colors"
                 title="Aus Artikelstamm wählen"
               >
                 <ChevronDown size={13} />
@@ -100,7 +100,7 @@ function PositionRow({
           </div>
           {/* Dropdown – fixed Breite, kein Overflow-Clipping */}
           {open && (
-            <div className="absolute z-50 top-full left-0 mt-1 bg-dark-800 border border-dark-700 rounded-xl shadow-2xl w-80 max-h-52 overflow-y-auto scrollbar-thin">
+            <div className="absolute z-50 top-full left-0 mt-1 bg-dark-800 border border-dark-700 rounded-xl shadow-2xl w-[min(20rem,calc(100vw-5rem))] max-h-52 overflow-y-auto scrollbar-thin">
               {artikel.map(a => (
                 <button
                   key={a.id}
@@ -128,15 +128,17 @@ function PositionRow({
         <button
           type="button"
           onClick={onDelete}
-          className="shrink-0 p-1.5 rounded text-gray-600 hover:text-red-400 hover:bg-red-900/30 transition-colors mt-0.5"
+          aria-label="Position löschen"
+          className="shrink-0 p-2.5 sm:p-1.5 -mt-1 sm:mt-0.5 rounded text-gray-600 hover:text-red-400 hover:bg-red-900/30 transition-colors"
         >
-          <Trash2 size={13} />
+          <Trash2 size={16} className="sm:w-[13px] sm:h-[13px]" />
         </button>
       </div>
 
-      {/* Zeile 2: Menge / Einheit / Einzelpreis / MwSt / Rabatt / Gesamt */}
-      <div className="flex items-center gap-2 pl-7">
-        <div className="flex flex-col gap-0.5 w-16">
+      {/* Zeile 2: Menge / Einheit / Einzelpreis / MwSt / Rabatt / Gesamt.
+          Handy: Raster mit 3 Feldern je Zeile; ab sm: alles in einer Zeile wie bisher. */}
+      <div className="grid grid-cols-6 gap-2 sm:flex sm:items-center sm:pl-7">
+        <div className="col-span-2 flex flex-col gap-0.5 sm:w-16">
           <span className="text-xs text-gray-500">Menge</span>
           <input
             type="number" min="0" step="0.01"
@@ -145,7 +147,7 @@ function PositionRow({
             className={`${cellInput} text-right`}
           />
         </div>
-        <div className="flex flex-col gap-0.5 w-16">
+        <div className="col-span-2 flex flex-col gap-0.5 sm:w-16">
           <span className="text-xs text-gray-500">Einheit</span>
           <input
             value={pos.einheit}
@@ -153,7 +155,7 @@ function PositionRow({
             className={cellInput}
           />
         </div>
-        <div className="flex flex-col gap-0.5 flex-1">
+        <div className="col-span-4 row-start-2 sm:row-start-auto flex flex-col gap-0.5 sm:flex-1">
           <span className="text-xs text-gray-500">
             {kleinunternehmer ? 'Einzelpreis (Endbetrag)' : 'Einzelpreis (€)'}
           </span>
@@ -164,7 +166,7 @@ function PositionRow({
             className={`${cellInput} text-right`}
           />
         </div>
-        <div className="flex flex-col gap-0.5 w-16">
+        <div className="col-span-2 flex flex-col gap-0.5 sm:w-16">
           <span className="text-xs text-gray-500">MwSt.</span>
           {kleinunternehmer ? (
             <div className={`${cellInput} text-gray-500 text-center py-1.5`} title="Keine gesonderte Umsatzsteuerausweisung">
@@ -182,8 +184,8 @@ function PositionRow({
             </select>
           )}
         </div>
-        <div className="flex flex-col gap-0.5 w-16">
-          <span className="text-xs text-gray-500">Rabatt%</span>
+        <div className="col-span-2 flex flex-col gap-0.5 sm:w-16">
+          <span className="text-xs text-gray-500">Rabatt %</span>
           <input
             type="number" min="0" max="100" step="0.5"
             value={pos.rabatt}
@@ -191,9 +193,9 @@ function PositionRow({
             className={`${cellInput} text-right`}
           />
         </div>
-        <div className="flex flex-col gap-0.5 text-right shrink-0">
+        <div className="col-span-6 flex items-baseline justify-between border-t border-dark-700/60 pt-1.5 sm:border-0 sm:pt-0 sm:flex-col sm:items-end sm:gap-0.5 sm:shrink-0">
           <span className="text-xs text-gray-500">{kleinunternehmer ? 'Betrag' : 'Gesamt (netto)'}</span>
-          <span className="text-xs font-semibold text-gray-200 py-1.5">{fmtEur(netto)}</span>
+          <span className="text-sm sm:text-xs font-semibold text-gray-200 sm:py-1.5 tabular-nums">{fmtEur(netto)}</span>
         </div>
       </div>
     </div>

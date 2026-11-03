@@ -119,6 +119,45 @@ export default function ServiceVertraege() {
     generateServicevertragPDF(v, data.firma, kunde);
   };
 
+  const kundeName = (v: ServiceVertrag) => data.kunden.find(k => k.id === v.kundeId)?.firma || '–';
+  const intervallLabel = (v: ServiceVertrag) => INTERVALL_OPTS.find(o => o.value === v.intervall)?.label ?? v.intervall;
+  const statusLabel = (v: ServiceVertrag) => STATUS_OPTS.find(s => s.value === v.status)?.label;
+  // Ende darf leer sein (unbefristet); new Date('') ließ die ganze Seite abstürzen.
+  const datumKurz = (iso: string) => (iso ? format(new Date(iso), 'dd.MM.yy', { locale: de }) : '');
+  const laufzeit = (v: ServiceVertrag) => `${datumKurz(v.beginnAm)} – ${datumKurz(v.endeAm) || 'unbefristet'}`;
+
+  const aktionen = (v: ServiceVertrag) => (
+    <>
+      <button
+        type="button"
+        onClick={() => handlePdf(v)}
+        title="PDF Zusammenfassung"
+        aria-label={`${v.titel}: PDF`}
+        className="p-3 md:p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors"
+      >
+        <Download size={20} className="md:w-3.5 md:h-3.5" />
+      </button>
+      <button
+        type="button"
+        onClick={() => openEdit(v)}
+        title="Bearbeiten"
+        aria-label={`${v.titel} bearbeiten`}
+        className="p-3 md:p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors"
+      >
+        <Pencil size={20} className="md:w-3.5 md:h-3.5" />
+      </button>
+      <button
+        type="button"
+        onClick={() => setDeleteId(v.id)}
+        title="Löschen"
+        aria-label={`${v.titel} löschen`}
+        className="p-3 md:p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors"
+      >
+        <Trash2 size={20} className="md:w-3.5 md:h-3.5" />
+      </button>
+    </>
+  );
+
   const inputCls =
     'w-full bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-500';
 
@@ -138,7 +177,7 @@ export default function ServiceVertraege() {
         }
       />
 
-      <div className="p-8 space-y-4">
+      <div className="p-4 sm:p-8 space-y-4">
         <div className="relative">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input
@@ -155,7 +194,8 @@ export default function ServiceVertraege() {
             <p className="text-sm">{search ? 'Keine Ergebnisse.' : 'Noch keine Serviceverträge.'}</p>
           </div>
         ) : (
-          <div className="bg-dark-800 rounded-2xl border border-dark-700 overflow-hidden">
+          <>
+          <div className="hidden md:block bg-dark-800 rounded-2xl border border-dark-700 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-dark-900/60 text-left border-b border-dark-700">
@@ -169,55 +209,42 @@ export default function ServiceVertraege() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-dark-700">
-                {filtered.map(v => {
-                  const kunde = data.kunden.find(k => k.id === v.kundeId);
-                  const iv =
-                    INTERVALL_OPTS.find(o => o.value === v.intervall)?.label ?? v.intervall;
-                  return (
-                    <tr key={v.id} className="hover:bg-dark-700/50 transition-colors">
-                      <td className="px-5 py-3 text-gray-200 max-w-xs">{v.titel}</td>
-                      <td className="px-5 py-3 text-gray-400">{kunde?.firma || '–'}</td>
-                      <td className="px-5 py-3 text-gray-500 text-xs">{iv}</td>
-                      <td className="px-5 py-3 text-right font-semibold text-gray-200 tabular-nums">
-                        {fmtEur(v.betragNetto)}
-                      </td>
-                      <td className="px-5 py-3 text-gray-500 text-xs whitespace-nowrap">
-                        {format(new Date(v.beginnAm), 'dd.MM.yy', { locale: de })} –{' '}
-                        {format(new Date(v.endeAm), 'dd.MM.yy', { locale: de })}
-                      </td>
-                      <td className="px-5 py-3 text-xs text-gray-400">{STATUS_OPTS.find(s => s.value === v.status)?.label}</td>
-                      <td className="px-5 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handlePdf(v)}
-                            title="PDF Zusammenfassung"
-                            className="p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors"
-                          >
-                            <Download size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => openEdit(v)}
-                            className="p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors"
-                          >
-                            <Pencil size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeleteId(v.id)}
-                            className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {filtered.map(v => (
+                  <tr key={v.id} className="hover:bg-dark-700/50 transition-colors">
+                    <td className="px-5 py-3 text-gray-200 max-w-xs">{v.titel}</td>
+                    <td className="px-5 py-3 text-gray-400">{kundeName(v)}</td>
+                    <td className="px-5 py-3 text-gray-500 text-xs">{intervallLabel(v)}</td>
+                    <td className="px-5 py-3 text-right font-semibold text-gray-200 tabular-nums">{fmtEur(v.betragNetto)}</td>
+                    <td className="px-5 py-3 text-gray-500 text-xs whitespace-nowrap">{laufzeit(v)}</td>
+                    <td className="px-5 py-3 text-xs text-gray-400">{statusLabel(v)}</td>
+                    <td className="px-5 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">{aktionen(v)}</div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
+
+          <ul className="md:hidden bg-dark-800 rounded-2xl border border-dark-700 divide-y divide-dark-700 overflow-hidden">
+            {filtered.map(v => (
+              <li key={v.id} className="p-4 space-y-2">
+                <button type="button" onClick={() => openEdit(v)} className="w-full min-h-11 text-left space-y-1 [overflow-wrap:anywhere]">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="font-medium text-gray-100">{v.titel}</p>
+                    <p className="shrink-0 font-semibold text-gray-200 tabular-nums">{fmtEur(v.betragNetto)}</p>
+                  </div>
+                  <p className="text-sm text-gray-400">{kundeName(v)}</p>
+                  <p className="text-xs text-gray-500">{intervallLabel(v)} · {laufzeit(v)}</p>
+                </button>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-gray-400">{statusLabel(v)}</span>
+                  <div className="flex items-center gap-1 shrink-0">{aktionen(v)}</div>
+                </div>
+              </li>
+            ))}
+          </ul>
+          </>
         )}
       </div>
 

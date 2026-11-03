@@ -112,11 +112,11 @@ export default function DokumentList({ typ }: Props) {
     const hatRechnung = typ === 'angebot' && !!findRechnungAusAngebot(doc.id);
     return (
       <>
-        <button onClick={() => handlePDF(doc)} title="PDF" className="p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors">
-          <Download size={14} />
+        <button onClick={() => handlePDF(doc)} title="PDF" className="p-3 md:p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors">
+          <Download size={20} className="md:w-3.5 md:h-3.5" />
         </button>
-        <button onClick={() => handleDuplicate(doc)} title="Duplizieren" className="p-1.5 rounded-lg text-gray-500 hover:text-violet-400 hover:bg-violet-900/30 transition-colors">
-          <Copy size={14} />
+        <button onClick={() => handleDuplicate(doc)} title="Duplizieren" className="p-3 md:p-1.5 rounded-lg text-gray-500 hover:text-violet-400 hover:bg-violet-900/30 transition-colors">
+          <Copy size={20} className="md:w-3.5 md:h-3.5" />
         </button>
         {typ === 'angebot' && (
           <>
@@ -125,29 +125,29 @@ export default function DokumentList({ typ }: Props) {
               onClick={() => void handleRechnungAusAngebot(doc)}
               title={hatRechnung ? 'Rechnung existiert bereits' : 'Rechnung aus Angebot'}
               disabled={hatRechnung}
-              className={`p-1.5 rounded-lg transition-colors ${
+              className={`p-3 md:p-1.5 rounded-lg transition-colors ${
                 hatRechnung
                   ? 'text-gray-700 cursor-not-allowed'
                   : 'text-gray-500 hover:text-amber-400 hover:bg-amber-900/30'
               }`}
             >
-              <ArrowRightCircle size={14} />
+              <ArrowRightCircle size={20} className="md:w-3.5 md:h-3.5" />
             </button>
             <button
               type="button"
               onClick={() => void handleProjektErstellen(doc)}
               title="Projekt erstellen"
-              className="p-1.5 rounded-lg text-gray-500 hover:text-emerald-400 hover:bg-emerald-900/30 transition-colors"
+              className="p-3 md:p-1.5 rounded-lg text-gray-500 hover:text-emerald-400 hover:bg-emerald-900/30 transition-colors"
             >
-              <FolderPlus size={14} />
+              <FolderPlus size={20} className="md:w-3.5 md:h-3.5" />
             </button>
           </>
         )}
-        <button type="button" onClick={() => openEdit(doc)} title="Bearbeiten" className="p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors">
-          <Pencil size={14} />
+        <button type="button" onClick={() => openEdit(doc)} title="Bearbeiten" className="p-3 md:p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors">
+          <Pencil size={20} className="md:w-3.5 md:h-3.5" />
         </button>
-        <button type="button" onClick={() => setDeleteId(doc.id)} title="Löschen" className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors">
-          <Trash2 size={14} />
+        <button type="button" onClick={() => setDeleteId(doc.id)} title="Löschen" className="p-3 md:p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors">
+          <Trash2 size={20} className="md:w-3.5 md:h-3.5" />
         </button>
       </>
     );
@@ -234,7 +234,7 @@ export default function DokumentList({ typ }: Props) {
               const { brutto } = berechneGesamtsummen(doc.positionen, ku);
               return (
                 <li key={doc.id} className="p-4 space-y-2">
-                  <button type="button" onClick={() => openEdit(doc)} className="w-full text-left space-y-1">
+                  <button type="button" onClick={() => openEdit(doc)} className="w-full min-h-11 text-left space-y-1">
                     <div className="flex justify-between gap-2 items-start">
                       <div className="min-w-0">
                         <p className="font-medium text-gray-100 break-words">{kunde?.firma || '–'}</p>
@@ -246,10 +246,9 @@ export default function DokumentList({ typ }: Props) {
                     </div>
                     {doc.betreff && <p className="text-sm text-gray-400 break-words">{doc.betreff}</p>}
                   </button>
-                  <div className="flex items-center justify-between gap-2">
-                    <StatusBadge status={doc.status} />
-                    <div className="flex items-center gap-1">{aktionen(doc)}</div>
-                  </div>
+                  <StatusBadge status={doc.status} />
+                  {/* Eigene Zeile: Neben dem Badge ist für sechs Tippflächen à 44 px kein Platz. */}
+                  <div className="flex items-center justify-between -mx-2 pt-1 border-t border-dark-700/60">{aktionen(doc)}</div>
                 </li>
               );
             })}

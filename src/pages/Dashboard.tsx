@@ -48,7 +48,7 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-4 sm:p-8 space-y-6 sm:space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-gray-100">Willkommen, {data.firma.inhaber}!</h1>
         <p className="text-gray-500 mt-1">Hier ist deine aktuelle Übersicht.</p>
@@ -123,25 +123,25 @@ export default function Dashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         {stats.map(({ label, value, icon: Icon, color, link }) => (
           <Link
             key={label}
             to={link}
-            className="bg-dark-800 rounded-2xl p-5 border border-dark-700 hover:border-dark-200/20 hover:bg-dark-800/80 transition-all"
+            className="min-w-0 bg-dark-800 rounded-2xl p-4 sm:p-5 border border-dark-700 hover:border-dark-200/20 hover:bg-dark-800/80 transition-all"
           >
             <div className={`w-10 h-10 rounded-xl ${color} flex items-center justify-center mb-3`}>
               <Icon size={20} />
             </div>
             <p className="text-2xl font-bold text-gray-100">{value}</p>
-            <p className="text-sm text-gray-500 mt-0.5">{label}</p>
+            <p className="text-sm text-gray-500 mt-0.5 truncate">{label}</p>
           </Link>
         ))}
       </div>
 
       {/* Letzte Dokumente */}
       <div className="bg-dark-800 rounded-2xl border border-dark-700">
-        <div className="px-5 py-4 border-b border-dark-700 flex items-center justify-between">
+        <div className="px-4 sm:px-5 py-4 border-b border-dark-700 flex items-center justify-between">
           <h2 className="font-semibold text-gray-200">Zuletzt erstellt</h2>
         </div>
         {recentDocs.length === 0 ? (
@@ -154,24 +154,26 @@ export default function Dashboard() {
               const kunde = kunden.find(k => k.id === doc.kundeId);
               const { brutto } = berechneGesamtsummen(doc.positionen, ku);
               return (
-                <li key={doc.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-dark-700/50 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${doc.typ === 'angebot' ? 'bg-amber-900/50' : 'bg-emerald-900/50'}`}>
+                <li key={doc.id} className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3.5 hover:bg-dark-700/50 transition-colors">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${doc.typ === 'angebot' ? 'bg-amber-900/50' : 'bg-emerald-900/50'}`}>
                       {doc.typ === 'angebot'
                         ? <FileText size={15} className="text-amber-400" />
                         : <Receipt size={15} className="text-emerald-400" />
                       }
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-sm font-medium text-gray-200">{doc.nummer}</p>
-                      <p className="text-xs text-gray-500">{kunde?.firma || 'Unbekannter Kunde'}</p>
+                      <p className="text-xs text-gray-500 truncate">{kunde?.firma || 'Unbekannter Kunde'}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-sm font-semibold text-gray-200">{fmtEur(brutto)}</span>
+                  <div className="shrink-0 flex items-center gap-2 sm:gap-4">
+                    <div className="flex flex-col items-end sm:flex-row sm:items-center sm:gap-4">
+                    <span className="text-sm font-semibold text-gray-200 tabular-nums">{fmtEur(brutto)}</span>
                     <span className="text-xs text-gray-600">
                       {format(new Date(doc.erstelltAm), 'dd.MM.yyyy', { locale: de })}
                     </span>
+                    </div>
                     {doc.status === 'bezahlt'
                       ? <CheckCircle size={15} className="text-emerald-400" />
                       : doc.status === 'ueberfaellig'

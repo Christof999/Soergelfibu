@@ -142,7 +142,7 @@ export default function Projekte() {
         }
       />
 
-      <div className="p-8">
+      <div className="p-4 sm:p-8">
         {projekte.length === 0 ? (
           <div className="bg-dark-800 rounded-2xl border border-dark-700 py-20 flex flex-col items-center gap-4 text-gray-600">
             <FolderKanban size={44} strokeWidth={1.2} />
@@ -161,17 +161,17 @@ export default function Projekte() {
                   <div
                     key={p.id}
                     onClick={() => navigate(`/projekte/${p.id}`)}
-                    className="bg-dark-800 border border-dark-700 rounded-2xl p-5 hover:border-primary-700/50 hover:bg-dark-800/80 transition-all cursor-pointer group"
+                    className="bg-dark-800 border border-dark-700 rounded-2xl p-4 sm:p-5 hover:border-primary-700/50 hover:bg-dark-800/80 transition-all cursor-pointer group"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 mb-1">
-                          <h3 className="text-base font-semibold text-gray-100 group-hover:text-primary-300 transition-colors truncate">{p.name}</h3>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-1">
+                          <h3 className="min-w-0 text-base font-semibold text-gray-100 group-hover:text-primary-300 transition-colors [overflow-wrap:anywhere] sm:truncate">{p.name}</h3>
                           <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_CLS[p.status]}`}>
                             {STATUS_LABELS[p.status]}
                           </span>
                         </div>
-                        <div className="flex items-center gap-3 text-xs text-gray-500 mb-2">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 mb-2">
                           {kunde && <span>{kunde.firma || kunde.ansprechpartner}</span>}
                           {angebot && <><span>·</span><span>{angebot.nummer}</span></>}
                           <span>·</span>
@@ -188,25 +188,29 @@ export default function Projekte() {
                           </div>
                         )}
                       </div>
-                      <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-1 shrink-0 -mr-2 -mt-2 md:m-0 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                         <button
                           onClick={e => { e.stopPropagation(); openEdit(p); }}
-                          className="p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors"
+                          title="Bearbeiten"
+                          aria-label={`${p.name} bearbeiten`}
+                          className="p-3 md:p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors"
                         >
-                          <Pencil size={14} />
+                          <Pencil size={20} className="md:w-3.5 md:h-3.5" />
                         </button>
                         <button
                           onClick={e => { e.stopPropagation(); setDeleteId(p.id); }}
-                          className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors"
+                          title="Löschen"
+                          aria-label={`${p.name} löschen`}
+                          className="p-3 md:p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors"
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={20} className="md:w-3.5 md:h-3.5" />
                         </button>
                       </div>
                     </div>
                     <div className="flex items-center gap-4 mt-3 pt-3 border-t border-dark-700 text-xs text-gray-600">
-                      <span>{p.zugaenge.length} Zugäng{p.zugaenge.length === 1 ? '' : 'e'}</span>
+                      <span>{p.zugaenge.length} {p.zugaenge.length === 1 ? 'Zugang' : 'Zugänge'}</span>
                       <span>·</span>
-                      <span>{p.kommunikation.length} Einträg{p.kommunikation.length === 1 ? '' : 'e'}</span>
+                      <span>{p.kommunikation.length} {p.kommunikation.length === 1 ? 'Eintrag' : 'Einträge'}</span>
                     </div>
                   </div>
                 );

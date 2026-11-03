@@ -86,11 +86,11 @@ export default function Einstellungen() {
         }
       />
 
-      <div className="p-8">
+      <div className="p-4 sm:p-8">
         <form onSubmit={handleSubmit(onSubmit)}>
-          <div className="bg-dark-800 rounded-2xl border border-dark-700 p-6">
+          <div className="bg-dark-800 rounded-2xl border border-dark-700 p-4 sm:p-6">
             {section('Firmeninformationen')}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {field('Firmenname', 'name')}
               {field('Inhaber', 'inhaber')}
               {field('E-Mail', 'email', 'email')}
@@ -101,7 +101,7 @@ export default function Einstellungen() {
             </div>
 
             {section('Adresse')}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {field('Straße', 'strasse')}
               {field('PLZ', 'plz')}
               {field('Ort', 'ort')}
@@ -109,7 +109,7 @@ export default function Einstellungen() {
             <div className="mt-4">{field('Land', 'land')}</div>
 
             {section('Bankverbindung')}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {field('IBAN', 'iban')}
               {field('BIC', 'bic')}
               {field('Bank', 'bank')}
@@ -149,7 +149,7 @@ export default function Einstellungen() {
             </div>
 
             {section('Nummerierung')}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {field('Angebots-Präfix (z.B. ANG)', 'angebotPrefix')}
               {field('Rechnungs-Präfix (z.B. RE)', 'rechnungPrefix')}
               <div>

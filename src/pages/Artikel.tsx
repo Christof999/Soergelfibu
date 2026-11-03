@@ -126,6 +126,29 @@ export default function ArtikelPage() {
     setModalOpen(false);
   };
 
+  const aktionen = (a: Artikel) => (
+    <>
+      <button
+        type="button"
+        onClick={() => openEdit(a)}
+        title="Bearbeiten"
+        aria-label={`${a.bezeichnung} bearbeiten`}
+        className="p-3 md:p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors"
+      >
+        <Pencil size={20} className="md:w-3.5 md:h-3.5" />
+      </button>
+      <button
+        type="button"
+        onClick={() => setDeleteId(a.id)}
+        title="Löschen"
+        aria-label={`${a.bezeichnung} löschen`}
+        className="p-3 md:p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors"
+      >
+        <Trash2 size={20} className="md:w-3.5 md:h-3.5" />
+      </button>
+    </>
+  );
+
   return (
     <div>
       <PageHeader
@@ -134,14 +157,14 @@ export default function ArtikelPage() {
         actions={
           <button
             onClick={openCreate}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
+            className="flex items-center gap-2 min-h-11 md:min-h-0 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
           >
             <Plus size={16} /> Neuer Artikel
           </button>
         }
       />
 
-      <div className="p-8 space-y-4">
+      <div className="p-4 sm:p-8 space-y-4">
         <div className="relative">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input
@@ -163,7 +186,8 @@ export default function ArtikelPage() {
             )}
           </div>
         ) : (
-          <div className="bg-dark-800 rounded-2xl border border-dark-700 overflow-hidden">
+          <>
+          <div className="hidden md:block bg-dark-800 rounded-2xl border border-dark-700 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-dark-900/60 text-left border-b border-dark-700">
@@ -189,20 +213,35 @@ export default function ArtikelPage() {
                     <td className="px-5 py-3 text-right font-semibold text-gray-200">{fmtEur(a.preis)}</td>
                     <td className="px-5 py-3 text-right text-gray-400">{a.mwstSatz}%</td>
                     <td className="px-5 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openEdit(a)} className="p-1.5 rounded-lg text-gray-500 hover:text-primary-400 hover:bg-primary-900/30 transition-colors">
-                          <Pencil size={14} />
-                        </button>
-                        <button onClick={() => setDeleteId(a.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-900/30 transition-colors">
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
+                      <div className="flex items-center justify-end gap-1">{aktionen(a)}</div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+
+          <ul className="md:hidden bg-dark-800 rounded-2xl border border-dark-700 divide-y divide-dark-700 overflow-hidden">
+            {filtered.map(a => (
+              <li key={a.id} className="p-4 space-y-2">
+                <button type="button" onClick={() => openEdit(a)} className="w-full min-h-11 text-left space-y-1 [overflow-wrap:anywhere]">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="font-medium text-gray-100">{a.bezeichnung}</p>
+                    <p className="shrink-0 font-semibold text-gray-200 tabular-nums">{fmtEur(a.preis)}</p>
+                  </div>
+                  {a.beschreibung && <p className="text-sm text-gray-500 line-clamp-2">{a.beschreibung}</p>}
+                </button>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="min-w-0 text-xs text-gray-500">
+                    <span className="font-mono">{a.artikelnummer}</span> · {a.einheit} · {a.mwstSatz}% MwSt.
+                    {a.kategorie && ` · ${a.kategorie}`}
+                  </p>
+                  <div className="flex items-center gap-1 shrink-0">{aktionen(a)}</div>
+                </div>
+              </li>
+            ))}
+          </ul>
+          </>
         )}
       </div>
 

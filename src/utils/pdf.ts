@@ -311,7 +311,7 @@ export function generateServicevertragPDF(
 
   const rows: [string, string][] = [
     ['Vertragsbeginn', fmtDate(vertrag.beginnAm)],
-    ['Vertragsende', fmtDate(vertrag.endeAm)],
+    ['Vertragsende', vertrag.endeAm ? fmtDate(vertrag.endeAm) : 'unbefristet'],
     ['Abrechnung', intervallText],
     ['Nettobetrag je Abrechnungszeitraum', nettoStr],
     ['MwSt.-Satz', `${vertrag.mwstSatz}% (Brutto je Zeitraum ca. ${bruttoStr})`],
