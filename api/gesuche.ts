@@ -159,6 +159,7 @@ async function ladeBrowserbase(urls: string[]): Promise<Map<string, { text: stri
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: Math.min(15_000, rest) });
         await page.waitForTimeout(1000);
         const text = (await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').trim();
+        console.log(`api/gesuche Browserbase ${url}: ${text.length} Zeichen, „${text.slice(0, 80)}“`);
         ergebnis.set(url, { text, datum: datumAusHtml(await page.content()) });
       } catch {
         /* nächste Seite */
