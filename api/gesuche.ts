@@ -6,7 +6,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
  *
  * 1. Gemini führt jede Suchanfrage als Google-Suche aus. Verwendet werden nur die
  *    Quellen, die Google tatsächlich geliefert hat — keine von der KI genannten URLs.
- * 2. Jede Fundstelle wird geladen (HTTP, bei Bot-Schutz wie Reddit per Browserbase).
+ * 2. Jede Fundstelle wird geladen: HTTP, bei Sperre (z. B. Reddit) über Geminis
+ *    URL-Kontext, als letzter Versuch Browserbase.
  * 3. Gemini bewertet den echten Seitentext und schreibt den Antwortvorschlag.
  *
  * Env: GEMINI_API_KEY, optional BROWSERBASE_API_KEY (+ BROWSERBASE_PROJECT_ID).
@@ -68,6 +69,19 @@ function datumAusHtml(html: string): string {
     html.match(/<time[^>]*\sdatetime="([^"]+)"/)?.[1];
   const d = roh ? new Date(roh) : null;
   return d && !Number.isNaN(d.getTime()) && d.getTime() <= Date.now() ? d.toISOString().slice(0, 10) : '';
+}
+
+/**
+ * Reddit-Beitrags-IDs (Base36) steigen fortlaufend. Linear zwischen zwei bekannten Beiträgen
+ * hochgerechnet liegt das Datum im Test höchstens ~10 Tage daneben — genug für den Zeitfilter.
+ */
+function datumAusRedditId(url: string): string {
+  const id = url.match(/reddit\.com\/r\/[^/]+\/comments\/([a-z0-9]+)/i)?.[1];
+  if (!id) return '';
+  const a = { n: parseInt('1h1dmwh', 36), t: Date.UTC(2024, 10, 27) };
+  const b = { n: parseInt('1pzcdab', 36), t: Date.UTC(2025, 11, 30) };
+  const t = a.t + ((parseInt(id, 36) - a.n) * (b.t - a.t)) / (b.n - a.n);
+  return new Date(Math.min(t, Date.now())).toISOString().slice(0, 10);
 }
 
 function quelleAusUrl(url: string): string {
@@ -142,12 +156,10 @@ async function ladeBrowserbase(urls: string[]): Promise<Map<string, { text: stri
   const { default: Browserbase } = await import('@browserbasehq/sdk');
   const { chromium } = await import('playwright-core');
   const projectId = process.env.BROWSERBASE_PROJECT_ID?.trim();
-  const bb = new Browserbase({ apiKey });
-  const optionen = { timeout: 60, region: 'eu-central-1' as const, ...(projectId ? { projectId } : {}) };
-  // Reddit sperrt Rechenzentrums-IPs; Proxys gibt es nur in bezahlten Browserbase-Tarifen.
-  const session = await bb.sessions.create({ ...optionen, proxies: true }).catch(e => {
-    console.error('api/gesuche Browserbase ohne Proxy:', e instanceof Error ? e.message : e);
-    return bb.sessions.create(optionen);
+  const session = await new Browserbase({ apiKey }).sessions.create({
+    timeout: 60,
+    region: 'eu-central-1',
+    ...(projectId ? { projectId } : {}),
   });
   const browser = await chromium.connectOverCDP(session.connectUrl);
   const deadline = Date.now() + BROWSERBASE_BUDGET_MS;
@@ -160,9 +172,7 @@ async function ladeBrowserbase(urls: string[]): Promise<Map<string, { text: stri
       try {
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: Math.min(15_000, rest) });
         await page.waitForTimeout(1000);
-        const text = (await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').trim();
-        console.log(`api/gesuche Browserbase ${url}: ${text.length} Zeichen, „${text.slice(0, 80)}“`);
-        ergebnis.set(url, { text, datum: datumAusHtml(await page.content()) });
+        const text = (await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').trim();        ergebnis.set(url, { text, datum: datumAusHtml(await page.content()) });
       } catch {
         /* nächste Seite */
       }
@@ -207,20 +217,59 @@ async function sucheKandidaten(suchanfragen: string[], key: string): Promise<str
   return [...eindeutig].slice(0, MAX_KANDIDATEN);
 }
 
-async function ladeSeiten(urls: string[]): Promise<GeladeneSeite[]> {
-  const texte = await Promise.all(urls.map(ladeHttp));
-  const zuDuenn = urls.filter((_, i) => texte[i].text.length < 300);
-  const ausBrowser = await ladeBrowserbase(zuDuenn).catch(e => {
+/**
+ * Gesperrte Seiten über Geminis URL-Kontext lesen: Google ruft die Seite selbst ab.
+ * Reddit sperrt sowohl Vercel als auch Browserbase (ohne bezahlte Proxys), Google nicht.
+ * Wörtliche Wiedergabe verweigert Gemini (RECITATION), daher Zusammenfassung.
+ */
+async function leseMitGemini(url: string, key: string): Promise<{ text: string; datum: '' } | null> {
+  try {
+    const { text } = await gemini(
+      {
+        contents: [{ parts: [{ text: `Rufe diese Seite ab: ${url}
+Fasse in eigenen Worten zusammen: Titel, was die Person sucht oder kritisiert und was bisher geantwortet wurde.
+Antworte nur mit JSON: {"titel":"","inhalt":""}` }] }],
+        tools: [{ url_context: {} }],
+        // Ohne Denkphase kam im Test bei 8 von 8 Aufrufen eine leere Antwort.
+        generationConfig: { temperature: 0.2, thinkingConfig: { thinkingBudget: 512 } },
+      },
+      key,
+      30_000,
+    );
+    const s = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1)) as { titel?: string; inhalt?: string };
+    // Datum bewusst leer: Gemini lag im Test um Monate daneben.
+    return s.inhalt ? { text: `${s.titel ?? ''}\n${s.inhalt}`, datum: '' } : null;
+  } catch (e) {
+    console.error(`api/gesuche URL-Kontext ${url}:`, e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+/**
+ * Laden in Stufen: HTTP → Gemini-URL-Kontext → Browserbase. Rohseiten unter 300 Zeichen
+ * sind Sperr- oder JS-Hüllen („You've been blocked by network security“).
+ */
+async function ladeSeiten(urls: string[], key: string): Promise<GeladeneSeite[]> {
+  const geladen = new Map<string, { text: string; datum: string }>();
+  const fehlend = () => urls.filter(u => !geladen.has(u));
+
+  const http = await Promise.all(urls.map(ladeHttp));
+  urls.forEach((url, i) => { if (http[i].text.length >= 300) geladen.set(url, http[i]); });
+
+  const ohneHttp = fehlend();
+  const ausGemini = await Promise.all(ohneHttp.map(url => leseMitGemini(url, key)));
+  ohneHttp.forEach((url, i) => { const s = ausGemini[i]; if (s) geladen.set(url, s); });
+
+  const ausBrowser = await ladeBrowserbase(fehlend()).catch(e => {
     console.error('api/gesuche Browserbase:', e);
     return new Map<string, { text: string; datum: string }>();
   });
-  return urls
-    .map((url, i) => {
-      const bb = ausBrowser.get(url);
-      const seite = bb && bb.text.length > texte[i].text.length ? bb : texte[i];
-      return { url, text: seite.text.slice(0, MAX_SEITENTEXT), datum: seite.datum };
-    })
-    .filter(s => s.text.length >= 200);
+  ausBrowser.forEach((s, url) => { if (s.text.length >= 300) geladen.set(url, s); });
+
+  return urls.flatMap(url => {
+    const s = geladen.get(url);
+    return s ? [{ url, text: s.text.slice(0, MAX_SEITENTEXT), datum: s.datum || datumAusRedditId(url) }] : [];
+  });
 }
 
 async function bewerte(seiten: GeladeneSeite[], tage: number, key: string): Promise<GesuchTreffer[]> {
@@ -298,7 +347,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const kandidaten = await sucheKandidaten(suchanfragen, key);
-    const seiten = await ladeSeiten(kandidaten);
+    const seiten = await ladeSeiten(kandidaten, key);
     const treffer = seiten.length ? await bewerte(seiten, tage, key) : [];
     return res.status(200).json({ treffer, gefunden: kandidaten.length, geladen: seiten.length });
   } catch (err) {
