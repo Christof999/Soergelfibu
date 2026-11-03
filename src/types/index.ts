@@ -202,6 +202,20 @@ export interface Lead {
   akquiseEmailZuletztVersendetAm?: string;
 }
 
+/** Fundstelle aus „Gesuche im Netz“ (api/gesuche.ts): jemand sucht öffentlich nach einer Lösung. */
+export interface GesuchTreffer {
+  url: string;
+  titel: string;
+  /** Domain, z. B. reddit.com */
+  quelle: string;
+  /** YYYY-MM-DD oder leer, wenn im Beitrag nicht erkennbar */
+  datum: string;
+  /** 0–100: wie warm der Kontakt ist */
+  score: number;
+  zusammenfassung: string;
+  antwortVorschlag: string;
+}
+
 /** Eingangsrechnung (Buchhaltung / Fibu) */
 export interface Eingangsrechnung {
   id: string;

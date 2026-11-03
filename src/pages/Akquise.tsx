@@ -5,6 +5,7 @@ import {
   TrendingUp, Users, FileText, Send, Gauge, Layers,
 } from 'lucide-react';
 import EmailModal from '../components/EmailModal';
+import GesucheImNetz from '../components/GesucheImNetz';
 import PageHeader from '../components/PageHeader';
 import { useApp } from '../context/AppContext';
 import { Lead, LeadAnalyse } from '../types';
@@ -299,7 +300,7 @@ function LeadKarte({
 
 // ─── Hauptseite ───────────────────────────────────────────────────────────────
 
-type Ansicht = 'suche' | 'potentiell';
+type Ansicht = 'suche' | 'potentiell' | 'gesuche';
 
 export default function Akquise() {
   const { data, upsertLead, deleteLead } = useApp();
@@ -447,6 +448,7 @@ export default function Akquise() {
         {([
           { id: 'suche', label: 'Suche & Entdecken' },
           { id: 'potentiell', label: `Potentielle Kunden${potentielle.length > 0 ? ` (${potentielle.length})` : ''}` },
+          { id: 'gesuche', label: 'Gesuche im Netz' },
         ] as { id: Ansicht; label: string }[]).map(t => (
           <button
             type="button"
@@ -564,6 +566,8 @@ export default function Akquise() {
             )}
           </>
         )}
+
+        {ansicht === 'gesuche' && <GesucheImNetz />}
 
         {ansicht === 'potentiell' && (
           <>

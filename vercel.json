@@ -4,6 +4,10 @@
       "maxDuration": 120,
       "memory": 1024
     },
+    "api/gesuche.ts": {
+      "maxDuration": 120,
+      "memory": 1024
+    },
     "api/**/*.ts": {
       "maxDuration": 60
     }
