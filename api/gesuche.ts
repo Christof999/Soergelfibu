@@ -142,10 +142,12 @@ async function ladeBrowserbase(urls: string[]): Promise<Map<string, { text: stri
   const { default: Browserbase } = await import('@browserbasehq/sdk');
   const { chromium } = await import('playwright-core');
   const projectId = process.env.BROWSERBASE_PROJECT_ID?.trim();
-  const session = await new Browserbase({ apiKey }).sessions.create({
-    timeout: 60,
-    region: 'eu-central-1',
-    ...(projectId ? { projectId } : {}),
+  const bb = new Browserbase({ apiKey });
+  const optionen = { timeout: 60, region: 'eu-central-1' as const, ...(projectId ? { projectId } : {}) };
+  // Reddit sperrt Rechenzentrums-IPs; Proxys gibt es nur in bezahlten Browserbase-Tarifen.
+  const session = await bb.sessions.create({ ...optionen, proxies: true }).catch(e => {
+    console.error('api/gesuche Browserbase ohne Proxy:', e instanceof Error ? e.message : e);
+    return bb.sessions.create(optionen);
   });
   const browser = await chromium.connectOverCDP(session.connectUrl);
   const deadline = Date.now() + BROWSERBASE_BUDGET_MS;
